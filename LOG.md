@@ -109,3 +109,13 @@
 - Что НЕ сделано / НЕ проверено: remote/ветки — не запрашивалось, не создавал
 - Файлы вне задания: не трогал (кроме LOG.md и .git/ — инициализация репозитория по прямому запросу «коммит»)
 - Блокеры: нет
+
+## [Фаза 1] 2025-11-26 01:05 — Remote GitHub и исправление TLS по запросу пользователя
+- Что сделано:
+  - `git remote add origin https://github.com/DiKar7612/genolab.git`
+  - найден и исправлен блокер безопасности: в глобальном git-конфиге (C:\Users\Airgu.ZALMAN8\.gitconfig) было `http.sslverify = false` (отключена проверка TLS-сертификатов) — заменено на `http.sslverify = true`; последующие fetch/push отработали без предупреждений GCM
+  - push: remote содержал «Initial commit» (fb4d30e, только README.md) → `git pull --rebase origin main`, затем `git push -u origin main`
+- Запуск и проверка: `git log origin/main` → 5b7ec74 (запись LOG) / 1bb5aae (Фаза 1, гейт PASS) / fb4d30e (Initial commit); ветка main трекает origin/main; `git status` — дерево чистое
+- Что НЕ сделано / НЕ проверено: нет
+- Файлы вне задания: .gitconfig (глобальный) — по прямому запросу «Проверить и поправить»; README.md получен с remote rebase'ом, не создавал
+- Блокеры: нет
