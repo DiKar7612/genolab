@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тесты: genome (фаза 1)</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <style>
+    #results table { border-collapse: collapse; margin: 12px 0; }
+    #results th, #results td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+    #results .pass { color: #1a7f37; font-weight: bold; }
+    #results .fail { color: #c0392b; font-weight: bold; }
+    #results .skip { color: #b07d1a; font-weight: bold; }
+    #results pre { background: #f4f4f4; padding: 10px; border-left: 4px solid #666;
+      white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; }
+    #verdict { font-size: 18px; }
+  </style>
+  <!-- Классические скрипты (не ESM): страница открывается с file://. -->
+  <script src="../js/core/rng.js"></script>
+  <script src="../js/core/genome.js"></script>
+  <script src="../js/core/breeder.js"></script>
+</head>
+<body style="padding: 24px;">
+  <h1>Тесты: js/core/genome.js (фаза 1)</h1>
+  <p>Валидация генома, фенотипизация по правилам species.json (полное доминирование)
+     и 10 000 скрещиваний на каждый вероятностный тест через genomeToPhenotype
+     (детерминированный ГСЧ mulberry32, фиксированные seed — воспроизводимо).
+     «Отклонение» = |наблюдаемая доля − ожидаемая| / ожидаемая × 100.
+     Критерии — genolab_tz.md §7.</p>
+  <div id="results"><p>Выполняются тесты…</p></div>
+  <script>
+  (function () {
+    'use strict';
+
+    var out = document.getElementById('results');
+    if (!window.GenoLab || !window.GenoLab.core || !window.GenoLab.core.breeder ||
+        !window.GenoLab.core.genome || !window.GenoLab.core.rng) {
+      out.innerHTML = '<p class="fail">FAIL: модули GenoLab (rng/genome/breeder) не загрузились</p>';
+      return;
+    }
+    var G = window.GenoLab;
+    var results = [];
+
+    function report(name, status, lines) {
+      results.push({ name: name, status: status, lines: lines });
+    }
+
+    var mk = function (pairs) { return G.core.genome.createGenome('golo', pairs); };
+    var cfg = G.core.genome.getSpeciesConfig();
+    var sp = cfg.species[0];
+
+    /* 1. Конфиг вида: один вид, 4 признака, полное доминирование. */
+    (function () {
+      var ok = cfg.species.length === 1 &&
+        sp.traits.length === 4 &&
+        sp.traits.every(function (t) { return t.model === 'complete-dominance'; }) &&
+        ['color', 'pattern', 'size', 'ears'].every(function (id) {
+          return sp.traits.some(function (t) { return t.id === id; });
+        });
+      report('T1. Конфиг: 1 вид, 4 признака (окрас/узор/размер/уши), полное доминирование',
+        ok ? 'PASS' : 'FAIL',
+        ['вид: ' + sp.id + ' («' + sp.name + '»), признаков: ' + sp.traits.length +
+         ' (' + sp.traits.map(function (t) { return t.id + ' ' + t.dominant + '/' + t.recessive; }).join(', ') + ')']);
+    })();
+
+    /* 2. Валидация: корректный геном. */
+    (function () {
+      var v = G.core.genome.validateGenome(mk([['A', 'a'], ['b', 'B'], ['c', 'c'], ['D', 'd']]));
+      report('T2. validateGenome: корректный геном → ok', v.ok ? 'PASS' : 'FAIL',
+        ['ok=' + v.ok + ', errors=' + JSON.stringify(v.errors)]);
+    })();
+
+    /* 3. Валидация: неизвестный аллель, лишняя пара, чужой вид. */
+    (function () {
+      var bad1 = G.core.genome.validateGenome({ species: 'golo', pairs: [['Z', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']] });
+      var bad2 = G.core.genome.validateGenome({ species: 'golo', pairs: [['A', 'A'], ['B', 'B'], ['C', 'C']] });
+      var bad3 = G.core.genome.validateGenome({ species: 'другой-вид', pairs: [['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']] });
+      var ok = !bad1.ok && bad1.errors.length > 0 && !bad2.ok && !bad3.ok;
+      report('T3. validateGenome: невалидные геномы → ok=false с описанием', ok ? 'PASS' : 'FAIL',
+        ['неизвестный аллель: ' + JSON.stringify(bad1.errors) +
+         '\n3 пары вместо 4: ' + JSON.stringify(bad2.errors) +
+         '\nнеизвестный вид: ' + JSON.stringify(bad3.errors)]);
+    })();
+
+    /* 4. Фенотипизация: AA→дом, Aa→дом, aA→дом, aa→рец — по всем 4 признакам. */
+    (function () {
+      var lines = [];
+      var ok = true;
+      sp.traits.forEach(function (t, i) {
+        var cases = [[t.dominant, t.dominant], [t.dominant, t.recessive], [t.recessive, t.dominant], [t.recessive, t.recessive]];
+        var expectedVals = [t.values[t.dominant], t.values[t.dominant], t.values[t.dominant], t.values[t.recessive]];
+        cases.forEach(function (c, j) {
+          var pairs = sp.traits.map(function (_, k) {
+            return k === i ? [c[0], c[1]] : [sp.traits[k].dominant, sp.traits[k].dominant];
+          });
+          var ph = G.core.genome.genomeToPhenotype(mk(pairs));
+          var got = ph[t.id];
+          var pass = got === expectedVals[j];
+          if (!pass) ok = false;
+          lines.push(t.id + ' [' + c[0] + c[1] + '] → ' + got + (pass ? '' : '  (ожидалось ' + expectedVals[j] + ')'));
+        });
+      });
+      report('T4. genomeToPhenotype: полное доминирование по 4 признакам (16 случаев)', ok ? 'PASS' : 'FAIL', lines);
+    })();
+
+    /* 5. Фенотипизация невалидного генома → исключение. */
+    (function () {
+      var threw = false;
+      try {
+        G.core.genome.genomeToPhenotype({ species: 'golo', pairs: [['Z', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']] });
+      } catch (e) { threw = true; }
+      report('T5. genomeToPhenotype(невалидный) → Error', threw ? 'PASS' : 'FAIL',
+        ['исключение брошено: ' + threw]);
+    })();
+
+    /* 6–8. Вероятностные распределения: 10 000 скрещиваний,
+       классификация — через genomeToPhenotype. */
+    function allChildren(seed, parentA, parentB, nCross) {
+      var rng = G.core.rng.createRng(seed);
+      var all = [];
+      for (var i = 0; i < nCross; i++) {
+        all = all.concat(G.core.breeder.cross(parentA, parentB, rng));
+      }
+      return all;
+    }
+    function distTest(name, seed, parentA, parentB, classify, expected, tolPct) {
+      var all = allChildren(seed, parentA, parentB, 10000);
+      var counts = {};
+      var total = all.length;
+      all.forEach(function (ch) {
+        var k = classify(ch);
+        counts[k] = (counts[k] || 0) + 1;
+      });
+      var lines = ['seed ' + seed + ', всего потомков: ' + total];
+      var ok = true;
+      Object.keys(expected).forEach(function (k) {
+        var obs = (counts[k] || 0) / total;
+        var dev = Math.abs(obs - expected[k]) / expected[k] * 100;
+        if (dev > tolPct) ok = false;
+        lines.push(k + ': наблюдаемо ' + (obs * 100).toFixed(2) + '% ' +
+          '(ожидалось ' + (expected[k] * 100).toFixed(2) + '%), ' +
+          'отклонение ' + dev.toFixed(2) + '%' + (dev > tolPct ? ' — ПРЕВЫШЕНО' : ''));
+      });
+      report(name, ok ? 'PASS' : 'FAIL', lines);
+    }
+    var Aa = mk([['A', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
+    var aa = mk([['a', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
+    var AaBb = mk([['A', 'a'], ['B', 'b'], ['C', 'C'], ['D', 'D']]);
+    distTest('T6. Aa×Aa → 3:1 (±5%), фенотип по окрасу', 404, Aa, Aa,
+      function (ch) { return G.core.genome.genomeToPhenotype(ch).color; },
+      { 'коричневый': 0.75, 'белый': 0.25 }, 5);
+    distTest('T7. Aa×aa → 1:1 (±5%), фенотип по окрасу', 808, Aa, aa,
+      function (ch) { return G.core.genome.genomeToPhenotype(ch).color; },
+      { 'коричневый': 0.5, 'белый': 0.5 }, 5);
+    distTest('T8. AaBb×AaBb → 9:3:3:1 (±3%), фенотип окрас×узор', 333, AaBb, AaBb,
+      function (ch) {
+        var ph = G.core.genome.genomeToPhenotype(ch);
+        return ph.color + ' + ' + ph.pattern;
+      },
+      { 'коричневый + полосатый': 9 / 16, 'коричневый + однотонный': 3 / 16,
+        'белый + полосатый': 3 / 16, 'белый + однотонный': 1 / 16 }, 3);
+
+    /* 9. Вшитый конфиг и файл species.json совпадают (только по http://;
+       по file:// fetch локального JSON блокируется CORS — SKIP). */
+    if (location.protocol === 'file:') {
+      report('T9. Вшитый конфиг == js/data/species.json', 'SKIP',
+        ['file:// — fetch локального JSON недоступен (CORS); используется вшитая копия конфига. Проверка выполняется по http://']);
+    } else {
+      fetch('../js/data/species.json').then(function (r) { return r.json(); }).then(function (fileData) {
+        var fileJson = JSON.stringify(fileData);
+        var embeddedJson = JSON.stringify(G.core.genome.getSpeciesConfig());
+        var ok = fileJson === embeddedJson;
+        report('T9. Вшитый конфиг == js/data/species.json', ok ? 'PASS' : 'FAIL',
+          ['совпадение JSON: ' + ok]);
+        render();
+      }).catch(function (err) {
+        report('T9. Вшитый конфиг == js/data/species.json', 'FAIL',
+          ['ошибка чтения файла: ' + err.message]);
+        render();
+      });
+      render();
+    }
+
+    function render() {
+      var nPass = results.filter(function (r) { return r.status === 'PASS'; }).length;
+      var nFail = results.filter(function (r) { return r.status === 'FAIL'; }).length;
+      var nSkip = results.filter(function (r) { return r.status === 'SKIP'; }).length;
+      var html = '<table><tr><th>№</th><th>Тест</th><th>Статус</th></tr>';
+      results.forEach(function (r, i) {
+        var cls = r.status === 'PASS' ? 'pass' : (r.status === 'SKIP' ? 'skip' : 'fail');
+        html += '<tr><td>' + (i + 1) + '</td><td>' + r.name + '</td><td class="' + cls + '">' + r.status + '</td></tr>';
+      });
+      html += '</table>';
+      results.forEach(function (r, i) {
+        html += '<h3>' + (i + 1) + '. ' + r.name + ' — <span class="' +
+          (r.status === 'PASS' ? 'pass' : (r.status === 'SKIP' ? 'skip' : 'fail')) + '">' + r.status + '</span></h3><pre>' +
+          r.lines.join('\n') + '</pre>';
+      });
+      html += '<p id="verdict">ОБЩИЙ ВЕРДИКТ: <span class="' + (nFail ? 'fail' : 'pass') + '">' +
+        (nFail ? 'FAIL (' + nPass + ' PASS / ' + nFail + ' FAIL' + (nSkip ? ' / ' + nSkip + ' SKIP' : '') + ')'
+               : 'PASS (' + nPass + ' PASS' + (nSkip ? ', ' + nSkip + ' SKIP' : '') + ')') + '</span></p>';
+      out.innerHTML = html;
+    }
+    if (location.protocol === 'file:') render();
+  })();
+  </script>
+</body>
+</html>

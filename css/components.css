@@ -1,0 +1,279 @@
+/* ============================================================
+   ГеноЛаб — компоненты: карточки, кнопки, экраны-заглушки.
+   ============================================================ */
+
+/* --- Общие элементы экрана --- */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.screen__title {
+  color: var(--color-gold);
+}
+
+.screen__hint {
+  color: var(--color-gray);
+  font-size: var(--font-size-sm);
+}
+
+.screen__stub {
+  padding: 16px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-gray);
+}
+
+/* --- Кнопки --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-gold-dim);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  color: var(--color-beige);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: border-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.btn--primary {
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+
+.btn--primary:hover:not(:disabled) {
+  color: var(--color-bg);
+  filter: brightness(1.12);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Счётчики ресурсов (шапка) --- */
+.resource {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.resource--coins {
+  color: var(--color-gold);
+  border-color: var(--color-gold-dim);
+}
+
+.resource--rep {
+  color: var(--color-gray);
+}
+
+/* --- Вольер: сетка карточек существ --- */
+.enclosure__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--gap);
+}
+
+.enclosure-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--gap);
+}
+
+.creature-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 110px;
+  padding: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.creature-card--empty {
+  opacity: 0.6;
+}
+
+.creature-card__sprite {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 72px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  color: var(--color-beige-dim);
+}
+
+.creature-card__slot {
+  font-size: 12px;
+  color: var(--color-beige-dim);
+}
+
+/* --- Скрещивание --- */
+.breed__parents {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.breed-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 130px;
+  padding: 10px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.breed-slot__sprite {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--color-beige-dim);
+}
+
+.breed-slot__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray);
+  text-align: center;
+}
+
+.breed__plus {
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  color: var(--color-gold);
+}
+
+.breed__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.breed__result {
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
+
+/* --- Карточка существа --- */
+.creature__body {
+  display: grid;
+  gap: 16px;
+}
+
+.creature__sprite {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-beige-dim);
+}
+
+.creature__info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .creature__body {
+    grid-template-columns: 220px 1fr;
+  }
+}
+
+/* --- Заказы --- */
+.orders-list {
+  display: grid;
+  gap: 10px;
+}
+
+.order {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.order__title {
+  font-weight: 600;
+}
+
+.order__desc {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-gray);
+}
+
+.order__reward {
+  flex: 0 0 auto;
+  color: var(--color-gold);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+/* --- Кодекс --- */
+.codex__progress {
+  color: var(--color-gray);
+  font-size: var(--font-size-sm);
+}
+
+.codex-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.codex-table th,
+.codex-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.codex-table th {
+  color: var(--color-gold);
+}
+
+/* --- Пустые состояния --- */
+.empty-state {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-beige-dim);
+  font-size: var(--font-size-sm);
+}

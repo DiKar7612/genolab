@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ГеноЛаб — конструктор скрещивания существ</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script>
+    /*
+     * Двойной режим загрузки JS:
+     *  - по http://  — js/main.js работает как ES-модуль
+     *    (<script type="module"> ниже) и сам подгружает модули;
+     *  - с file://   — браузеры блокируют ES-модули (CORS), поэтому
+     *    при сбое загрузки модуля те же файлы догружаются как
+     *    классические скрипты по манифесту. Файлы написаны без
+     *    статических import/export (экспорты — namespace
+     *    window.GenoLab), поэтому работают в обоих режимах.
+     *  Манифест = все модули, кроме main.js (он — последний).
+     */
+    window.__genolabManifest = [
+      'js/core/rng.js',
+      'js/core/genome.js',
+      'js/core/breeder.js',
+      'js/core/economy.js',
+      'js/state/store.js',
+      'js/state/save.js',
+      'js/render/creature.js',
+      'js/render/pennett.js',
+      'js/quests/questEngine.js',
+      'js/quests/tutorial.js',
+      'js/ui/router.js',
+      'js/ui/screens/enclosure.js',
+      'js/ui/screens/breed.js',
+      'js/ui/screens/creature.js',
+      'js/ui/screens/orders.js',
+      'js/ui/screens/codex.js',
+      'js/main.js'
+    ];
+
+    window.__genolabClassicLoad = function () {
+      if (window.__genolabClassic) return;
+      window.__genolabClassic = true;
+      /* Явная последовательность: следующий файл — только после
+       * исполнения предыдущего (порядок манифеста обязателен:
+       * core -> state -> render -> quests -> router -> screens -> main). */
+      function loadNext(i) {
+        if (i >= window.__genolabManifest.length) return;
+        const s = document.createElement('script');
+        s.src = window.__genolabManifest[i];
+        s.onload = function () { loadNext(i + 1); };
+        s.onerror = function () {
+          console.error('[ГеноЛаб] не удалось загрузить:', window.__genolabManifest[i]);
+          loadNext(i + 1);
+        };
+        document.head.appendChild(s);
+      }
+      loadNext(0);
+    };
+  </script>
+  <script type="module" src="js/main.js" onerror="window.__genolabClassicLoad()"></script>
+</head>
+<body>
+
+  <!-- Верхняя панель: название + ресурсы -->
+  <header class="topbar">
+    <div class="topbar__title">ГеноЛаб</div>
+    <div class="topbar__resources" aria-label="Ресурсы">
+      <span class="resource resource--coins">Монеты: 0</span>
+      <span class="resource resource--rep">Репутация: 0</span>
+    </div>
+  </header>
+
+  <!-- Навигация по экранам (маршруты: js/ui/router.js) -->
+  <nav class="nav" aria-label="Экраны">
+    <a class="nav__link" href="#/enclosure" data-route="enclosure">Вольер</a>
+    <a class="nav__link" href="#/breed" data-route="breed">Скрещивание</a>
+    <a class="nav__link" href="#/creature" data-route="creature">Существо</a>
+    <a class="nav__link" href="#/orders" data-route="orders">Заказы</a>
+    <a class="nav__link" href="#/codex" data-route="codex">Кодекс</a>
+  </nav>
+
+  <!-- Контейнер экранов: активный экран рендерит js/ui/screens/*.js -->
+  <main id="screens"></main>
+
+  <footer class="statusbar">ГеноЛаб — фаза 0: каркас. Логика и сейвы появятся в следующих фазах.</footer>
+
+</body>
+</html>

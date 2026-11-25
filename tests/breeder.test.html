@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тесты: breeder (фаза 1, гейт)</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <style>
+    #results table { border-collapse: collapse; margin: 12px 0; }
+    #results th, #results td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+    #results .pass { color: #1a7f37; font-weight: bold; }
+    #results .fail { color: #c0392b; font-weight: bold; }
+    #results .skip { color: #b07d1a; font-weight: bold; }
+    #results pre { background: #f4f4f4; padding: 10px; border-left: 4px solid #666;
+      white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; }
+    #verdict { font-size: 18px; }
+  </style>
+  <!-- Классические скрипты (не ESM): страница открывается с file://. -->
+  <script src="../js/core/rng.js"></script>
+  <script src="../js/core/genome.js"></script>
+  <script src="../js/core/breeder.js"></script>
+</head>
+<body style="padding: 24px;">
+  <h1>Тесты: js/core/breeder.js (фаза 1 — гейт)</h1>
+  <p>10 000 скрещиваний на каждый вероятностный тест, детерминированный ГСЧ
+     mulberry32 с фиксированными seed (результат воспроизводим).
+     «Отклонение» = |наблюдаемая доля − ожидаемая| / ожидаемая × 100.
+     Критерии — genolab_tz.md §7: Aa×Aa → 3:1 ±5%; Aa×aa → 1:1 ±5%;
+     AaBb×AaBb → 9:3:3:1 ±3%.</p>
+  <div id="results"><p>Выполняются тесты…</p></div>
+  <script>
+  (function () {
+    'use strict';
+
+    var out = document.getElementById('results');
+    if (!window.GenoLab || !window.GenoLab.core || !window.GenoLab.core.breeder ||
+        !window.GenoLab.core.genome || !window.GenoLab.core.rng) {
+      out.innerHTML = '<p class="fail">FAIL: модули GenoLab (rng/genome/breeder) не загрузились</p>';
+      return;
+    }
+    var G = window.GenoLab;
+    var results = [];
+
+    function report(name, status, lines) {
+      results.push({ name: name, status: status, lines: lines });
+    }
+
+    function allChildren(seed, parentA, parentB, nCross) {
+      var rng = G.core.rng.createRng(seed);
+      var all = [];
+      for (var i = 0; i < nCross; i++) {
+        all = all.concat(G.core.breeder.cross(parentA, parentB, rng));
+      }
+      return all;
+    }
+
+    function distTest(name, seed, parentA, parentB, classify, expected, tolPct) {
+      var all = allChildren(seed, parentA, parentB, 10000);
+      var counts = {};
+      var total = all.length;
+      all.forEach(function (ch) {
+        var k = classify(ch);
+        counts[k] = (counts[k] || 0) + 1;
+      });
+      var lines = ['seed ' + seed + ', всего потомков: ' + total];
+      var ok = true;
+      Object.keys(expected).forEach(function (k) {
+        var obs = (counts[k] || 0) / total;
+        var dev = Math.abs(obs - expected[k]) / expected[k] * 100;
+        if (dev > tolPct) ok = false;
+        lines.push(k + ': наблюдаемо ' + (obs * 100).toFixed(2) + '% ' +
+          '(ожидалось ' + (expected[k] * 100).toFixed(2) + '%), ' +
+          'отклонение ' + dev.toFixed(2) + '%' + (dev > tolPct ? ' — ПРЕВЫШЕНО' : ''));
+      });
+      report(name, ok ? 'PASS' : 'FAIL', lines);
+    }
+
+    var mk = function (pairs) { return G.core.genome.createGenome('golo', pairs); };
+    var Aa   = mk([['A', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
+    var aa   = mk([['a', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
+    var AaBb = mk([['A', 'a'], ['B', 'b'], ['C', 'C'], ['D', 'D']]);
+
+    function dom1(ch) { return (ch.pairs[0][0] === 'A' || ch.pairs[0][1] === 'A') ? 'доминантный (A_)' : 'рецессивный (aa)'; }
+    function dihybrid(ch) {
+      var d1 = (ch.pairs[0][0] === 'A' || ch.pairs[0][1] === 'A');
+      var d2 = (ch.pairs[1][0] === 'B' || ch.pairs[1][1] === 'B');
+      return (d1 ? 'A_' : 'aa') + (d2 ? 'B_' : 'bb');
+    }
+
+    /* 1–3. Вероятностные распределения (10 000 скрещиваний каждое). */
+    distTest('T1. Aa×Aa → 3:1 (±5%)', 101, Aa, Aa, dom1,
+      { 'доминантный (A_)': 0.75, 'рецессивный (aa)': 0.25 }, 5);
+    distTest('T2. Aa×aa → 1:1 (±5%)', 201, Aa, aa, dom1,
+      { 'доминантный (A_)': 0.5, 'рецессивный (aa)': 0.5 }, 5);
+    distTest('T3. AaBb×AaBb → 9:3:3:1 (±3%)', 303, AaBb, AaBb, dihybrid,
+      { 'A_B_': 9 / 16, 'A_bb': 3 / 16, 'aaB_': 3 / 16, 'aabb': 1 / 16 }, 3);
+
+    /* 4. Количество потомков: 1000 скрещиваний, 1–4 шт., геномы валидны. */
+    (function () {
+      var counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+      var badGenomes = 0;
+      var rng = G.core.rng.createRng(900);
+      for (var i = 0; i < 1000; i++) {
+        var kids = G.core.breeder.cross(AaBb, AaBb, rng);
+        if (kids.length < 1 || kids.length > 4) {
+          counts[0] = (counts[0] || 0) + 1;
+        } else {
+          counts[kids.length] = (counts[kids.length] || 0) + 1;
+        }
+        kids.forEach(function (k) {
+          if (!G.core.genome.validateGenome(k).ok) badGenomes++;
+        });
+      }
+      var ok = (counts[0] || 0) === 0 && badGenomes === 0;
+      report('T4. 1000 скрещиваний: 1–4 потомка, все геномы валидны', ok ? 'PASS' : 'FAIL',
+        ['распределение по числу потомков: 1→' + (counts[1] || 0) +
+         ', 2→' + (counts[2] || 0) + ', 3→' + (counts[3] || 0) + ', 4→' + (counts[4] || 0) +
+         ', вне диапазона: ' + (counts[0] || 0) + ', невалидных геномов: ' + badGenomes]);
+    })();
+
+    /* 5. Чистота аллелей: у каждого потомка аллель [0] — из A, [1] — из B. */
+    (function () {
+      var rng = G.core.rng.createRng(901);
+      var bad = 0;
+      var total = 0;
+      for (var i = 0; i < 500; i++) {
+        G.core.breeder.cross(AaBb, aa, rng).forEach(function (k) {
+          k.pairs.forEach(function (p, j) {
+            total++;
+            var pa = AaBb.pairs[j], pb = aa.pairs[j];
+            if (p[0] !== pa[0] && p[0] !== pa[1]) bad++;
+            if (p[1] !== pb[0] && p[1] !== pb[1]) bad++;
+          });
+        });
+      }
+      report('T5. Аллели потомков — только от родителей (500 скрещиваний)',
+        bad === 0 ? 'PASS' : 'FAIL',
+        ['проверено пар аллелей: ' + total + ', нарушений: ' + bad]);
+    })();
+
+    /* 6. Воспроизводимость: одинаковый seed → одинаковый результат. */
+    (function () {
+      function seq(seed) {
+        var rng = G.core.rng.createRng(seed);
+        var s = '';
+        for (var i = 0; i < 200; i++) {
+          G.core.breeder.cross(AaBb, AaBb, rng).forEach(function (k) {
+            s += G.core.genome.genotypeString(k) + ';';
+          });
+        }
+        return s;
+      }
+      var s1 = seq(1234), s2 = seq(1234), s3 = seq(4321);
+      var ok = s1 === s2 && s1 !== s3;
+      report('T6. Воспроизводимость по seed (mulberry32)', ok ? 'PASS' : 'FAIL',
+        ['seed 1234 повторён 2 раза: совпадает=' + (s1 === s2) +
+         ', seed 4321 отличается=' + (s1 !== s3) + ', длина последовательности=' + s1.length]);
+    })();
+
+    /* 7. pennettGrid Aa×Aa: решётка 2×2, точные доли. */
+    (function () {
+      var grid = G.core.breeder.pennettGrid(Aa, Aa);
+      var ok = grid.rows === 2 && grid.cols === 2 &&
+        Math.abs(grid.byGenotype['AA'] - 0.25) < 1e-12 &&
+        Math.abs(grid.byGenotype['Aa'] - 0.5) < 1e-12 &&
+        Math.abs(grid.byGenotype['aa'] - 0.25) < 1e-12 &&
+        Math.abs(grid.byPhenotype['коричневый'] - 0.75) < 1e-12 &&
+        Math.abs(grid.byPhenotype['белый'] - 0.25) < 1e-12;
+      report('T7. pennettGrid(Aa×Aa) 2×2: точные доли', ok ? 'PASS' : 'FAIL',
+        ['byGenotype: ' + JSON.stringify(grid.byGenotype) +
+         '\nbyPhenotype: ' + JSON.stringify(grid.byPhenotype)]);
+    })();
+
+    /* 8. pennettGrid AaBb×AaBb (2 признака): решётка 4×4, 9:3:3:1 точно. */
+    (function () {
+      var grid = G.core.breeder.pennettGrid(AaBb, AaBb, ['color', 'pattern']);
+      var ok = grid.rows === 4 && grid.cols === 4 &&
+        Math.abs(grid.byPhenotype['коричневый|полосатый'] - 9 / 16) < 1e-12 &&
+        Math.abs(grid.byPhenotype['коричневый|однотонный'] - 3 / 16) < 1e-12 &&
+        Math.abs(grid.byPhenotype['белый|полосатый'] - 3 / 16) < 1e-12 &&
+        Math.abs(grid.byPhenotype['белый|однотонный'] - 1 / 16) < 1e-12;
+      report('T8. pennettGrid(AaBb×AaBb) 4×4: точное 9:3:3:1', ok ? 'PASS' : 'FAIL',
+        ['byPhenotype: ' + JSON.stringify(grid.byPhenotype)]);
+    })();
+
+    /* 9. pennettGrid — чистая функция: не трогает состояние ГСЧ. */
+    (function () {
+      var r1 = G.core.rng.createRng(777);
+      G.core.breeder.pennettGrid(AaBb, AaBb, ['color', 'pattern']);
+      var x1 = r1.randomInt(1, 4);
+      var r2 = G.core.rng.createRng(777);
+      var x2 = r2.randomInt(1, 4);
+      var ok = x1 === x2;
+      report('T9. pennettGrid чистая (не расходует ГСЧ)', ok ? 'PASS' : 'FAIL',
+        ['x после вызова решётки = ' + x1 + ', x без вызова = ' + x2 + ', совпадает=' + ok]);
+    })();
+
+    /* Вывод в DOM. */
+    var nPass = results.filter(function (r) { return r.status === 'PASS'; }).length;
+    var nFail = results.length - nPass;
+    var html = '<table><tr><th>№</th><th>Тест</th><th>Статус</th></tr>';
+    results.forEach(function (r, i) {
+      var cls = r.status === 'PASS' ? 'pass' : (r.status === 'SKIP' ? 'skip' : 'fail');
+      html += '<tr><td>' + (i + 1) + '</td><td>' + r.name + '</td><td class="' + cls + '">' + r.status + '</td></tr>';
+    });
+    html += '</table>';
+    results.forEach(function (r, i) {
+      html += '<h3>' + (i + 1) + '. ' + r.name + ' — <span class="' +
+        (r.status === 'PASS' ? 'pass' : 'fail') + '">' + r.status + '</span></h3><pre>' +
+        r.lines.join('\n') + '</pre>';
+    });
+    html += '<p id="verdict">ОБЩИЙ ВЕРДИКТ: <span class="' + (nFail ? 'fail' : 'pass') + '">' +
+      (nFail ? 'FAIL (' + nPass + '/' + results.length + ', упало ' + nFail + ')' : 'PASS (' + nPass + '/' + results.length + ')') + '</span></p>';
+    out.innerHTML = html;
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "species": [
+    {
+      "id": "golo",
+      "name": "Голо",
+      "traits": [
+        {
+          "id": "color",
+          "name": "Окрас",
+          "model": "complete-dominance",
+          "dominant": "A",
+          "recessive": "a",
+          "values": { "A": "коричневый", "a": "белый" }
+        },
+        {
+          "id": "pattern",
+          "name": "Узор",
+          "model": "complete-dominance",
+          "dominant": "B",
+          "recessive": "b",
+          "values": { "B": "полосатый", "b": "однотонный" }
+        },
+        {
+          "id": "size",
+          "name": "Размер",
+          "model": "complete-dominance",
+          "dominant": "C",
+          "recessive": "c",
+          "values": { "C": "крупный", "c": "мелкий" }
+        },
+        {
+          "id": "ears",
+          "name": "Форма ушей",
+          "model": "complete-dominance",
+          "dominant": "D",
+          "recessive": "d",
+          "values": { "D": "острые", "d": "круглые" }
+        }
+      ]
+    }
+  ]
+}

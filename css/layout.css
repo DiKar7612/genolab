@@ -1,0 +1,119 @@
+/* ============================================================
+   ГеноЛаб — макет: сетка страницы, навигация, адаптив от 360px.
+   ============================================================ */
+
+/* Каркас страницы: колонка (шапка → навигация → экраны → статус) */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* --- Верхняя панель --- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  min-height: var(--topbar-h);
+  padding: 6px 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-gold-dim);
+}
+
+.topbar__title {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  white-space: nowrap;
+}
+
+.topbar__resources {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* --- Навигация по экранам ---
+   На 360px кнопки прокручиваются по горизонтали,
+   на широких экранах — по центру. */
+.nav {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nav__link {
+  flex: 0 0 auto;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.nav__link:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.nav__link.is-active {
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+
+/* --- Область экранов: один активный <section class="screen"> --- */
+#screens {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 16px 12px 24px;
+}
+
+/* --- Нижняя панель --- */
+.statusbar {
+  padding: 8px 12px;
+  font-size: var(--font-size-sm);
+  color: var(--color-beige-dim);
+  text-align: center;
+  border-top: 1px solid var(--color-border);
+}
+
+/* --- Адаптив --- */
+@media (min-width: 640px) {
+  .nav {
+    padding: 10px 20px;
+  }
+
+  #screens {
+    padding: 24px 20px 32px;
+  }
+}
+
+@media (min-width: 900px) {
+  .topbar {
+    padding: 8px 20px;
+  }
+
+  .nav {
+    justify-content: center;
+    overflow-x: visible;
+  }
+}
