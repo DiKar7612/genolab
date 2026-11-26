@@ -1,11 +1,15 @@
-/* ГеноЛаб — js/ui/screens/breed.js — экран «Скрещивание» (фаза 2).
+/* ГеноЛаб — js/ui/screens/breed.js — экран «Скрещивание» (фаза 4б).
  *
  * Двойной режим загрузки: экспорты — window.GenoLab.ui.screens.breed.
- * В фазе 2 — интерактивная решётка Пеннета (render.pennett) для двух
- * демо-родителей: 2×2 (1 признак) или 4×4 (2 признака), случайная
- * подсветка выпавшей клетки, клик по клетке. Выбор родителей из
- * вольера, анимация и потомки — фаза 4 (state/store.js).
- * Разметка — только из внутренних констант (SECURITY.md §4).
+ * Два слота родителей (выбор из вольера через <select>), кнопка
+ * «Случайно», анимация скрещивания 1–2 с (только CSS keyframes,
+ * <style> — константа внутри экрана; css-файлы фаза 4б не трогает),
+ * лента потомков (render.creature). Потомки добавляются в вольер
+ * через state.store с учётом лимита слотов; при переполнении —
+ * диалог выбора, кого оставить.
+ * Математика — только core.breeder.cross (docs/api.md), breeder.js
+ * и genome.js не меняются. Разметка — только из внутренних констант
+ * и данных store (SECURITY.md §4).
  */
 (function (global) {
   'use strict';
@@ -14,74 +18,362 @@
   g.ui = g.ui || {};
   g.ui.screens = g.ui.screens || {};
 
-  /* Демо-родители (пары в порядке признаков вида golo). */
-  var PARENT_A_PAIRS = [['A', 'a'], ['B', 'b'], ['C', 'C'], ['D', 'd']];
-  var PARENT_B_PAIRS = [['A', 'A'], ['B', 'b'], ['C', 'c'], ['D', 'D']];
+  /* Длительность анимации, мс (промпт: 1–2 с). */
+  var BUSY_MS = 1600;
+
+  /* CSS анимации экрана (ключи breed-* — локальны, конфликтов нет). */
+  var STYLE_CSS =
+    '.breed-slot__select{width:100%;padding:4px;font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius)}' +
+    '@keyframes breed-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}' +
+    '@keyframes breed-pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}' +
+    '.breed-slot.is-busy .breed-slot__sprite{animation:breed-pulse .8s ease-in-out infinite}' +
+    '.breed__ribbon{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}' +
+    '.breed__ribbon-item{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;animation:breed-pop .4s ease both}' +
+    '.breed__ribbon-item svg{max-width:100%;height:auto}' +
+    '.breed__ribbon-pheno{font-size:var(--font-size-sm);color:var(--ink-soft);text-align:center}' +
+    '.breed__ribbon-status{font-size:var(--font-size-sm);color:var(--accent);text-align:center}' +
+    '.breed__msg{min-height:1.2em;margin-top:8px;color:var(--ink-soft)}' +
+    '.breed__dialog{border:2px solid var(--accent);border-radius:var(--radius);padding:12px;margin-top:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}' +
+    '.breed__dialog-item{display:flex;align-items:center;gap:8px}' +
+    '.breed__dialog-actions{display:flex;gap:8px;flex-wrap:wrap}';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function phLabel(phen, sp) {
+    var parts = [];
+    sp.traits.forEach(function (t) { parts.push(t.name + ': ' + phen[t.id]); });
+    return parts.join(', ');
+  }
+
+  function getStore() { return g.state.store; }
+  function enclosureList() { return getStore().getState().enclosure; }
+  function byId(id) {
+    var found = null;
+    enclosureList().forEach(function (c) { if (c.id === id) found = c; });
+    return found;
+  }
+
+  /* Локальное состояние экрана (переживает перерисовки). */
+  var currentContainer = null;
+  var selA = null;
+  var selB = null;
+  var busy = false;
+  var busyClassA = false;
+  var busyClassB = false;
+  var message = '';
+  var lastResults = [];  // {genome, status: 'in' | 'out' | 'pending', idIn}
+  var dialog = null;     // {rejected: [{genome, checked, index}], free: number, addedIds: [id]}
+
+  function slotOptions(selectedId) {
+    var genome = g.core.genome;
+    var list = enclosureList();
+    var html = '<option value="">— выберите —</option>';
+    list.forEach(function (c) {
+      var phen = genome.genomeToPhenotype(c);
+      var sp = genome.getSpecies(c.species);
+      html += '<option value="' + esc(c.id) + '"' + (c.id === selectedId ? ' selected' : '') + '>' +
+        esc(c.id + ' — ' + phLabel(phen, sp)) + '</option>';
+    });
+    return html;
+  }
+
+  function slotHTML(which, selectedId, isBusy) {
+    var genome = g.core.genome;
+    var creature = g.render.creature;
+    var c = byId(selectedId);
+    var sprite;
+    var label;
+    if (c) {
+      var phen = genome.genomeToPhenotype(c);
+      sprite = creature.renderCreature(phen, 96);
+      label = c.id + ' — ' + phLabel(phen, genome.getSpecies(c.species));
+    } else {
+      sprite = '<span class="breed-slot__empty">пусто</span>';
+      label = 'родитель не выбран';
+    }
+    return '<div class="breed-slot' + (isBusy ? ' is-busy' : '') + '" data-breed-slot="' + which + '">' +
+      '<select class="breed-slot__select" id="breed-select-' + which + '" name="breed-select-' + which + '" data-breed-select="' + which + '" aria-label="Родитель ' + which + '">' +
+      slotOptions(selectedId) +
+      '</select>' +
+      '<div class="breed-slot__sprite">' + sprite + '</div>' +
+      '<div class="breed-slot__label">' + esc(label) + '</div>' +
+      '</div>';
+  }
+
+  function ribbonHTML() {
+    var genome = g.core.genome;
+    var creature = g.render.creature;
+    var html = '<div class="breed__result"><h2>Потомки</h2>';
+    if (lastResults.length === 0) {
+      html += '<span class="screen__hint">Пока пусто — выберите родителей и нажмите «Скрестить».</span>';
+    }
+    lastResults.forEach(function (r) {
+      var phen = genome.genomeToPhenotype(r.genome);
+      var sp = genome.getSpecies(r.genome.species);
+      var status = r.status === 'in' ? 'В вольере: #' + esc(r.idIn) :
+        r.status === 'pending' ? 'ожидает выбора' : 'выпущен';
+      html += '<div class="breed__ribbon-item">' +
+        '<div>' + creature.renderCreature(phen, 96) + '</div>' +
+        '<div class="breed__ribbon-pheno">' + esc(phLabel(phen, sp)) + '</div>' +
+        '<div class="breed__ribbon-status">' + status + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function dialogHTML() {
+    if (!dialog) return '';
+    var st = getStore().getState();
+    var liveFree = st.slotLimit - st.enclosure.length;
+    var canKeep = dialog.free > 0 || dialog.addedIds.length > 0;
+    var html = '<div class="breed__dialog" role="dialog" aria-label="Вольер полон">' +
+      '<h3>Вольер полон (' + st.enclosure.length + '/' + st.slotLimit + ')</h3>' +
+      '<p class="breed__msg">Свободных слотов: ' + liveFree +
+      (canKeep
+        ? ' — отметьте, кого оставить (до ' + dialog.free +
+          (dialog.addedIds.length > 0 ? '; при нехватке слота — обмен на последнего добавленного потомка' : '') +
+          ' — остальные будут выпущены).'
+        : ' — освободите слоты на экране «Вольер» (продажа) и повторите скрещивание.') +
+      '</p>';
+    if (canKeep) {
+      dialog.rejected.forEach(function (r, i) {
+        var genome = g.core.genome;
+        var phen = genome.genomeToPhenotype(r.genome);
+        var sp = genome.getSpecies(r.genome.species);
+        html += '<label class="breed__dialog-item">' +
+          '<input type="checkbox" data-breed-dlg="' + i + '"' + (r.checked ? ' checked' : '') + '>' +
+          '<span class="breed__ribbon-pheno">' + esc(phLabel(phen, sp)) + '</span>' +
+          '</label>';
+      });
+      html += '<div class="breed__dialog-actions">' +
+        '<button class="btn" type="button" data-breed-dlg-keep>Оставить выбранных</button>' +
+        '<button class="btn" type="button" data-breed-dlg-cancel>Отмена</button>' +
+        '</div>';
+    } else {
+      html += '<div class="breed__dialog-actions">' +
+        '<button class="btn" type="button" data-breed-dlg-cancel>Понятно</button>' +
+        '</div>';
+    }
+    return html + '</div>';
+  }
+
+  function renderScreen(container) {
+    var st = getStore().getState();
+    /* Просроченные выборы (существо продали) сбрасываем. */
+    if (selA && !byId(selA)) selA = null;
+    if (selB && !byId(selB)) selB = null;
+
+    var html = '<section class="screen" aria-labelledby="screen-title">' +
+      '<h1 class="screen__title" id="screen-title">Скрещивание</h1>' +
+      '<style>' + STYLE_CSS + '</style>' +
+      '<div class="breed__parents">' +
+      slotHTML('A', selA, busyClassA) +
+      '<div class="breed__plus">×</div>' +
+      slotHTML('B', selB, busyClassB) +
+      '</div>' +
+      '<div class="breed__actions" style="margin-top:10px">' +
+      '<button class="btn" type="button" data-breed-random>Случайно</button>' +
+      '<button class="btn" type="button" data-breed-start' + (busy ? ' disabled' : '') + '>Скрестить</button>' +
+      '</div>' +
+      '<div class="breed__msg" role="status"></div>' +
+      ribbonHTML() +
+      dialogHTML() +
+      '</section>';
+
+    container.innerHTML = html;
+    var msg = container.querySelector('.breed__msg');
+    if (message) msg.textContent = message;
+    message = '';
+
+    if (st.enclosure.length < 2) {
+      msg.textContent = 'В вольере меньше двух существ — скрещивание пока недоступно.';
+    }
+
+    var startBtn = container.querySelector('[data-breed-start]');
+    var randomBtn = container.querySelector('[data-breed-random]');
+
+    container.querySelectorAll('[data-breed-select]').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        if (sel.dataset.breedSelect === 'A') selA = sel.value || null;
+        else selB = sel.value || null;
+        renderScreen(container);
+      });
+    });
+
+    randomBtn.addEventListener('click', function () {
+      var ids = enclosureList().map(function (c) { return c.id; });
+      if (ids.length < 2) {
+        message = 'Для случайного выбора нужно минимум два существа в вольере.';
+        renderScreen(container);
+        return;
+      }
+      var i = g.core.rng.randomInt(0, ids.length - 1);
+      var j = g.core.rng.randomInt(0, ids.length - 2);
+      if (j >= i) j += 1;
+      selA = ids[i];
+      selB = ids[j];
+      renderScreen(container);
+    });
+
+    startBtn.addEventListener('click', function () {
+      startCross(container);
+    });
+
+    if (dialog) bindDialog(container);
+  }
+
+  function bindDialog(container) {
+    /* Лимит отметок — свободные слоты на момент скрещивания: при
+     * нехватке слота «Оставить» делает обмен на добавленного потомка. */
+    var free = dialog.free;
+    container.querySelectorAll('[data-breed-dlg]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        if (cb.checked) {
+          var checkedCount = container.querySelectorAll('[data-breed-dlg]:checked').length;
+          if (checkedCount > free) {
+            cb.checked = false;
+            return;
+          }
+        }
+        dialog.rejected[Number(cb.dataset.breedDlg)].checked = cb.checked;
+      });
+    });
+
+    var keep = container.querySelector('[data-breed-dlg-keep]');
+    if (keep) {
+      keep.addEventListener('click', function () {
+        var store = getStore();
+        var kept = 0;
+        dialog.rejected.forEach(function (r) {
+          if (!r.checked) return;
+          var res = store.addCreature(deepCopy(r.genome));
+          if (!res.ok && dialog.addedIds.length > 0) {
+            /* Обмен: освобождаем последнего добавленного потомка. */
+            var swapped = dialog.addedIds.pop();
+            store.removeCreature(swapped);
+            lastResults.forEach(function (lr) {
+              if (lr.idIn === swapped) { lr.status = 'out'; lr.idIn = null; }
+            });
+            res = store.addCreature(deepCopy(r.genome));
+          }
+          if (res.ok) {
+            kept += 1;
+            lastResults[r.index].status = 'in';
+            lastResults[r.index].idIn = res.id;
+          }
+        });
+        var leftPending = lastResults.filter(function (lr) { return lr.status === 'pending'; });
+        lastResults.forEach(function (lr) {
+          if (lr.status === 'pending') lr.status = 'out';
+        });
+        if (kept === 0 && leftPending.length > 0) {
+          message = 'Не хватило слотов — освободите место в вольере.';
+          return; // диалог остаётся открытым
+        }
+        message = kept > 0 ? 'В вольер добавлено: ' + kept : 'Выбора не было — потомки выпущены.';
+        dialog = null;
+        renderScreen(container);
+      });
+    }
+
+    var cancel = container.querySelector('[data-breed-dlg-cancel]');
+    if (cancel) {
+      cancel.addEventListener('click', function () {
+        lastResults.forEach(function (lr) {
+          if (lr.status === 'pending') lr.status = 'out';
+        });
+        dialog = null;
+        message = 'Потомки, не попавшие в вольер, выпущены.';
+        renderScreen(container);
+      });
+    }
+  }
+
+  function startCross(container) {
+    if (busy) return;
+    if (!selA || !selB) {
+      message = 'Выберите обоих родителей.';
+      renderScreen(container);
+      return;
+    }
+    if (selA === selB) {
+      message = 'Родители должны быть разные.';
+      renderScreen(container);
+      return;
+    }
+    var pa = byId(selA);
+    var pb = byId(selB);
+    if (!pa || !pb) {
+      message = 'Родители не найдены в вольере.';
+      renderScreen(container);
+      return;
+    }
+
+    busy = true;
+    busyClassA = true;
+    busyClassB = true;
+    message = 'Скрещивание…';
+    renderScreen(container);
+
+    global.setTimeout(function () {
+      var offspring = g.core.breeder.cross(pa, pb);
+      var store = getStore();
+      lastResults = offspring.map(function (off) { return { genome: off, status: 'pending', idIn: null }; });
+      dialog = null;
+      var freeBefore = store.getState().slotLimit - store.getState().enclosure.length;
+      var rejected = [];
+      var addedIds = [];
+      offspring.forEach(function (off, i) {
+        var res = store.addCreature(deepCopy(off));
+        if (res.ok) {
+          lastResults[i].status = 'in';
+          lastResults[i].idIn = res.id;
+          addedIds.push(res.id);
+        } else {
+          rejected.push({ genome: deepCopy(off), checked: false, index: i });
+        }
+      });
+      busy = false;
+      busyClassA = false;
+      busyClassB = false;
+      if (rejected.length > 0) {
+        dialog = { rejected: rejected, free: freeBefore, addedIds: addedIds };
+        message = rejected.length + ' потомков не поместилось — выберите, кого оставить.';
+      } else {
+        message = 'Готово: ' + offspring.length + ' потомков в вольере.';
+      }
+      renderScreen(container);
+    }, BUSY_MS);
+  }
+
+  function screenRender(container) {
+    currentContainer = container;
+    renderScreen(container);
+  }
 
   var screen = {
     name: 'breed',
-    render: function (container) {
-      var genome = g.core.genome;
-      var creature = g.render.creature;
-      var pennett = g.render.pennett;
-      var parentA = genome.createGenome('golo', PARENT_A_PAIRS);
-      var parentB = genome.createGenome('golo', PARENT_B_PAIRS);
-      var phenA = genome.genomeToPhenotype(parentA);
-      var phenB = genome.genomeToPhenotype(parentB);
-      var state = { traitIds: ['color', 'pattern'] };
-
-      container.innerHTML =
-        '<section class="screen" aria-labelledby="screen-title">' +
-        '<h1 class="screen__title" id="screen-title">Скрещивание</h1>' +
-        '<div class="screen__hint">Демо-родители (выбор из вольера — фаза 4).</div>' +
-        '<div class="breed__parents">' +
-        '  <div class="breed-slot">' +
-        '    <div class="breed-slot__sprite">' + creature.renderCreature(phenA, 96) + '</div>' +
-        '    <div class="breed-slot__label">Родитель A</div>' +
-        '  </div>' +
-        '  <div class="breed__plus">×</div>' +
-        '  <div class="breed-slot">' +
-        '    <div class="breed-slot__sprite">' + creature.renderCreature(phenB, 96) + '</div>' +
-        '    <div class="breed-slot__label">Родитель B</div>' +
-        '  </div>' +
-        '</div>' +
-        '<div class="breed__actions">' +
-        '  <button class="btn" id="grid-1t" type="button">Решётка 2×2 (окрас)</button>' +
-        '  <button class="btn" id="grid-2t" type="button">Решётка 4×4 (окрас × узор)</button>' +
-        '  <button class="btn" id="grid-reroll" type="button">Переснять клетку</button>' +
-        '</div>' +
-        '<div class="breed__result" id="pennett-area"></div>' +
-        '</section>';
-
-      var area = container.querySelector('#pennett-area');
-
-      function draw() {
-        var grid = g.core.breeder.pennettGrid(parentA, parentB, state.traitIds);
-        var picked = g.core.rng.randomInt(0, grid.cells.length - 1);
-        var out = pennett.renderGrid(parentA, parentB, {
-          traitIds: state.traitIds,
-          pickedIndex: picked,
-          sizePx: state.traitIds.length > 1 ? 72 : 96
-        });
-        area.innerHTML = out.html;
-        out.bind(area);
-      }
-
-      container.querySelector('#grid-1t').addEventListener('click', function () {
-        state.traitIds = ['color'];
-        draw();
-      });
-      container.querySelector('#grid-2t').addEventListener('click', function () {
-        state.traitIds = ['color', 'pattern'];
-        draw();
-      });
-      container.querySelector('#grid-reroll').addEventListener('click', draw);
-
-      draw();
-    }
+    render: screenRender
   };
 
   g.ui.screens.breed = screen;
+
+  /* Экран живёт на своём маршруте — перерисовываемся при каждом
+   * изменении состояния (добавление/продажа в вольере). */
+  if (g.state && g.state.store && typeof g.state.store.subscribe === 'function') {
+    g.state.store.subscribe(function () {
+      if (!busy && currentContainer && global.document.contains(currentContainer)) {
+        renderScreen(currentContainer);
+      }
+    });
+  }
 
   /* Экран сам регистрируется в роутере (роутер грузится раньше). */
   if (g.router && typeof g.router.register === 'function') {
