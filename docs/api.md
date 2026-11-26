@@ -1,10 +1,11 @@
 # ГеноЛаб — сводка API (docs/api.md)
 
 Сгенерировано по фазе 4а (Prompts/phase4a_api.md) строго по реальному коду
-фаз 1–3. Каждый модуль — классический скрипт (IIFE), экспорты на namespace
-`window.GenoLab.*` (ESM-экспортов нет — решение фазы 0).
+фаз 1–3; обновлено по фазе 4c (store.setQuests, js/quests/questEngine.js,
+стартовые существа). Каждый модуль — классический скрипт (IIFE), экспорты на
+namespace `window.GenoLab.*` (ESM-экспортов нет — решение фазы 0).
 
-Дальше этот документ — источник интерфейсов для фаз 4б, 4в и 5:
+Дальше этот документ — источник интерфейсов для фаз 4в и 5:
 изменять без правки кода запрещено.
 
 Состояние (схема `genolab_save_v1`, валидация — `save.validate`):
@@ -14,10 +15,14 @@
   version: 1,
   enclosure: [ { id: string, species: string, pairs: [[string, string], ...] } ],
   resources: { coins: number >= 0, reputation: number >= 0 },
-  quests: {},                    // прогресс квестов (фаза 4)
+  quests: {},                    // {completed: [id], progress: {id: number}, ordersDone: [id]} — фаза 4c
   slotLimit: number, 1..24       // целое, предел — config.slots.max
 }
 ```
+
+Начальное состояние (`store.initialState`, фаза 4c): 3 стартовых существа
+в вольере — `c1`/`c2` (Aa Bb Cc Dd, гетерозиготы) и `c3` (aa bb cc dd,
+чистый рецессив); 0 монет и 0 репутации; `quests: {}`.
 
 ---
 
@@ -93,11 +98,12 @@ mutation: {enabled: false, chance: 0.03} }`.
 | `addCreature` | `addCreature(genome: object) => {ok: boolean, id?: string, reason?: string}` | Добавить в вольер: лимит слотов, `validateGenome`; пустой/конфликтующий id автоматически заменяется следующим свободным `cN` |
 | `removeCreature` | `removeCreature(id: string) => {ok: boolean, reason?: string}` | Убрать существо по id |
 | `sellCreature` | `sellCreature(id: string) => {ok: boolean, coins?: number, reason?: string}` | Продать: убрать из вольера + `prices.sellCreature` монет |
+| `setQuests` | `setQuests(quests: object) => void` | Заменить прогресс квестов целиком (используется `js/quests/questEngine.js`); бросает `Error` на не-объекте |
 | `buySlot` | `buySlot() => {ok: boolean, slotLimit?: number, reason?: string}` | Купить слот (цена `prices.buySlot`, предел `slots.max`); списывает монеты |
 | `addCoins` | `addCoins(n: number) => number` | Прибавить монеты (может быть отрицательным); возвращает новый баланс; бросает `Error` на не-числе |
 | `addReputation` | `addReputation(n: number) => number` | Прибавить репутацию; возвращает новый баланс; бросает `Error` на не-числе |
 | `applyState` | `applyState(saved: object) => void` | Заменить состояние целиком (вызывается `save.js` после валидации) |
-| `reset` | `reset() => object` | Сброс к начальному состоянию (пустой вольер, 0 ресурсов, slotLimit = config.slots.base); возвращает новое состояние |
+| `reset` | `reset() => object` | Сброс к начальному состоянию (3 стартовых существа, 0 ресурсов, slotLimit = config.slots.base); возвращает новое состояние |
 
 ---
 
@@ -150,3 +156,31 @@ eval (SECURITY.md §6).
 `opts.sizePx` — умолчание: 96 для 2×2, 72 для 4×4; `opts.pickedIndex` —
 индекс случайно выпавшей клетки (подсветка `is-picked` + подпись
 «Выпавшая клетка: ...»).
+
+---
+
+## js/quests/questEngine.js — `window.GenoLab.quests.questEngine`
+
+Движок квестов и заказов (фаза 4c). Данные — `js/data/quests.json`
+(5 обучающих квестов + 5 заказов); в `questEngine.js` есть точная
+вшитая копия (по `file://` JSON не читается), `loadQuests(url)` по
+`http://` подменяет её файлом после валидации формы. Модуль не знает
+о DOM: только данные и `state.store`. Прогресс — в `state.quests`
+(запись через `store.setQuests`), награды — через `store.addCoins` /
+`store.addReputation`.
+
+| Экспорт | Сигнатура | Описание |
+|---|---|---|
+| `QUESTS_DATA` | `object (только чтение)` | Вшитая исходная копия `js/data/quests.json` (`{version, quests, orders}`) |
+| `getQuests` | `getQuests() => {quests: [object], orders: [object]}` | Глубокая копия актуальных данных |
+| `loadQuests` | `loadQuests(url: string) => Promise<{ok: boolean, reason?: string}>` | Загрузить данные из файла (`http://`); по `file://` — `{ok:false}`, остаётся вшитая копия |
+| `isQuestsShape` | `isQuestsShape(v: object) => boolean` | Валидация формы файла квестов (безопасность) |
+| `matchPhenotype` | `matchPhenotype(phen: object, spec: object) => boolean` | Все пары ключ-значение из `spec` равны в `phen` |
+| `activeQuestId` | `activeQuestId(qs: object) => string \| null` | Идентификатор активного квеста (линейно: первый невыполненный) или `null` |
+| `getProgress` | `getProgress(qs: object, questId: string) => {have: number, need: number, done: boolean}` | Счётчик цели квеста (`have` не превышает `need`) |
+| `isOrderDone` | `isOrderDone(qs: object, orderId: string) => boolean` | Выполнен ли заказ |
+| `getActive` | `getActive() => {quest: object \| null, progress: object \| null}` | Активный квест с прогрессом (читает `state.store`) |
+| `listOrders` | `listOrders() => [{id, title, phen, reward, done, match: string \| null}]` | Заказы со статусом; `match` — id первого подходящего существа в вольере |
+| `onOffspring` | `onOffspring(phen: object) => {changed: boolean, completed: object \| null, reason?: string}` | Событие: получен потомок; засчитывает цель `offspring`, выдаёт награду |
+| `onSequenced` | `onSequenced(phen: object) => {changed: boolean, completed: object \| null, reason?: string}` | Событие: секвенировано существо; засчитывает цель `sequence` |
+| `completeOrder` | `completeOrder(orderId: string) => {ok: boolean, reward?: object, questCompleted?: object \| null, reason?: string}` | Награда за заказ + отметка; если цель активного квеста — `order`, квест завершается (награда его тоже начисляется); передачу существа выполняет вызывающий экран |

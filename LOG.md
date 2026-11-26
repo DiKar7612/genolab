@@ -298,3 +298,30 @@
   - Экспорт/импорт сейва через экран скрещивания — не проверялся (функция экрана вольера, фаза 3)
 - Файлы вне задания: js/core/genome.js, js/core/breeder.js, js/state/store.js, js/state/save.js, js/core/economy.js, js/render/*, js/ui/screens/enclosure.js, js/main.js, css/*, index.html, tests/* — не трогал (только breed.js: +356/−64)
 - Блокеры: нет. Замечание: genome.js (заморожен) выдаёт id по счётчику _idSeq, сбрасываемому при перезагрузке — коллизии гасит store.addCreature (maxN+1), в вольере дублей нет
+
+## [Фаза 4c] 2026-11-26 16:50 — Квесты и заказы: quests.json + questEngine + экран «Заказы» (промпт Prompts/phase4_gameplay.md)
+- Что сделано:
+  - js/data/quests.json (новый): 5 обучающих квестов (q1 доминантный окрас → q2 скрытый аллель → q3 рецессивный признак → q4 фиксация → q5 предсказание расщепления, 5 генетических концептов, линейно) + 5 заказов (1–3 признака, растущая награда 40→200 мон.)
+  - js/quests/questEngine.js полностью переписан (IIFE, GenoLab.quests.questEngine): точная вшитая копия quests.json (file:// не читает JSON), loadQuests(url) по http:// после isQuestsShape; matchPhenotype; activeQuestId (линейная разблокировка: первый невыполненный); цели offspring/sequence/order; onOffspring/onSequenced (прогресс + награда, запись через store.setQuests); listOrders (match — id первого подходящего существа в вольере); completeOrder (награда заказа + автозакрытие квеста с целью order). DOM не трогает
+  - js/state/store.js: стартовый вольер из 3 существ (c1/c2 — Aa Bb Cc Dd гетерозиготы, c3 — aa bb cc dd чистый рецессив), setQuests(quests) (глубокое копирование, Error на не-объекте), initialState/reset используют стартовый вольер
+  - js/ui/screens/breed.js: после cross() для каждого потомка (независимо от размещения в вольере) — questEngine.onOffspring(phen)
+  - js/ui/screens/orders.js переписан: панель 5 квестов (выполнен / идёт N/M / ждёт очереди + текст активного), фильтр по признакам (из species.json), карточки заказов (признаки, награда, «Выполнить» активна только при match, после выполнения — «Выполнен ✓»); «Выполнить» = store.removeCreature(match) + engine.completeOrder
+  - js/ui/screens/creature.js переписан: выбор существа из вольера (фенотип-ярлык), крупный SVG, «Секвенировать» (prices.sequence из config, списывает монеты, открывает генотип в сессии, событие onSequenced в questEngine)
+  - js/main.js: (а) исправлен баг модульного режима (http://) — ядро (core/state/render/quests) не подгружалось вовсе, экраны падали; теперь под import'ы экранов грузится 10 ядра-модулей в порядке манифеста (только при !__genolabClassic); (б) loadQuests('js/data/quests.json') по http://, по file:// остаётся вшитая копия
+  - index.html: обновлён текст футера (не «фаза 0: каркас»)
+  - docs/api.md: обновлён по коду (схема quests в сейве, стартовое состояние, store.setQuests, секция questEngine — 13 экспортов)
+  - tests/quests_test.html (новый): T1 вшитая копия === файл (http://), T2 matchPhenotype, T3 q1 (цель/счётчик/награда/разблокировка), T4 q2 (гейт по типу цели), T5 заказы q3–q5 (награды, повтор запрещён, монеты сходится до 330), T6 listOrders (match по стартовому вольеру), T7 isQuestsShape
+- Запуск и проверка (chrome-devtools MCP, http://127.0.0.1:8137 — модульный режим):
+  - node --check по всем изменённым js — OK; JSON config/quests — парсятся
+  - tests/quests_test.html по http://: «PASS (7 PASS)» — T1–T7
+  - E2E полный цикл: вольер 3 стартовых (c1,c2,c3), консоль пустая → скрещивание c1×c2 (5 циклов, диалоги переполнения) → вольер 12/12, q1 выполнен (40 мон., 1 реп., progress 2/2) → секвенирование c1: «Генотип #c1: AaBbCcDd», q2 выполнен (50 мон., 2 реп.) → экран «Заказы»: панель 5 статусов, 5 активных заказов → «Выполнить» o1: #c1 передан, 90 мон., 3 реп., enclosure 11, ordersDone ['o1'] → фильтр «Окрас: белый» оставляет o3/o5
+  - Персистентность: перезагрузка → вольер 11, 90/3, quests {q1,q2 completed, ordersDone o1} — PASS; консоль после reload пустая
+  - Регрессия по http://: genome «PASS (9 PASS)», breeder «PASS (9/9)», render_grid «PASS (11/11)», config_test «PASS (5/5)» (T1 identity — PASS)
+  - Скриншот: C:\Users\Airgu.ZALMAN8\AppData\Local\Temp\genolab_phase4c_orders.png. Осмотрено VL-моделью (MCP vision): панель квестов с 5 статусами и текстом активного, фильтр, 5 карточек заказов с наградами, первая «Выполнен ✓», шапка «Монеты: 90, Репутация: 3» — корректно
+- Что НЕ сделано / НЕ проверено:
+  - file://-E2E новых экранов (orders/creature) не прогонялся отдельно — проверен только модульный режим по http:// (манифест фолбэка загружает те же классические файлы, но живой прогон на file:// — не выполнен)
+  - loadConfig('js/data/config.json') по-прежнему не подключён в main.js (отложенная позиция фазы 4а; вшитый CONFIG остаётся каноническим)
+  - Кнопка покупки слота (buySlot) — API есть, UI нет (не в scope фазы 4c)
+  - js/quests/tutorial.js — заглушка (исторические квесты — фаза 5)
+- Файлы вне задания: js/core/{rng,genome,breeder,economy}.js, js/state/save.js, js/render/*, js/ui/screens/enclosure.js, js/ui/router.js, css/*, tests/{genome,breeder}.test.html, tests/config_test.html, js/data/species.json — не трогал
+- Блокеры: нет. Найден и исправлен системный баг: по http:// (модульный режим) ядро не подгружалось вообще — main.js подгружал только router и экраны; добавлен ordered-import 10 модулей ядра (guarded !window.__genolabClassic)

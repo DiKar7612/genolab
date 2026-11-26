@@ -326,6 +326,12 @@
       var offspring = g.core.breeder.cross(pa, pb);
       var store = getStore();
       lastResults = offspring.map(function (off) { return { genome: off, status: 'pending', idIn: null }; });
+      /* Квесты (фаза 4c): каждый полученный потомок засчитывается в цель,
+       * независимо от того, остался ли он в вольере. */
+      var quest = g.quests && g.quests.questEngine;
+      offspring.forEach(function (off) {
+        if (quest) quest.onOffspring(g.core.genome.genomeToPhenotype(off));
+      });
       dialog = null;
       var freeBefore = store.getState().slotLimit - store.getState().enclosure.length;
       var rejected = [];

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тесты: quests (фаза 4c)</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <style>
+    #results table { border-collapse: collapse; margin: 12px 0; }
+    #results th, #results td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+    #results .pass { color: #1a7f37; font-weight: bold; }
+    #results .fail { color: #c0392b; font-weight: bold; }
+    #results .skip { color: #b07d1a; font-weight: bold; }
+    #results pre { background: #f4f4f4; padding: 10px; border-left: 4px solid #666;
+      white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; }
+    #verdict { font-size: 18px; }
+  </style>
+  <!-- Классические скрипты (не ESM); T1 требует http:// (fetch локального JSON). -->
+  <script src="../js/core/rng.js"></script>
+  <script src="../js/core/genome.js"></script>
+  <script src="../js/core/economy.js"></script>
+  <script src="../js/state/store.js"></script>
+  <script src="../js/quests/questEngine.js"></script>
+</head>
+<body style="padding: 24px;">
+  <h1>Тесты: js/quests/questEngine.js (фаза 4c)</h1>
+  <p>Совпадение вшитой копии и js/data/quests.json (T1 — только по http://,
+     по file:// fetch блокируется CORS → SKIP), совпадение фенотипа со спецификацией,
+     линейная разблокировка 5 квестов, награды, заказы.
+     Запускать по http:// (см. tests/config_test.html).</p>
+  <div id="results"><p>Выполняются тесты…</p></div>
+  <script>
+  (function () {
+    'use strict';
+
+    var out = document.getElementById('results');
+    var GL = window.GenoLab;
+    if (!GL || !GL.core || !GL.core.genome || !GL.state || !GL.state.store ||
+        !GL.quests || !GL.quests.questEngine) {
+      out.innerHTML = '<p class="fail">FAIL: модули GenoLab (genome/store/questEngine) не загрузились</p>';
+      return;
+    }
+    var engine = GL.quests.questEngine;
+    var store = GL.state.store;
+
+    var rows = [];
+    function pass(name, detail) { rows.push(['pass', 'PASS', name, detail || '']); }
+    function fail(name, detail) { rows.push(['fail', 'FAIL', name, detail || '']); }
+    function skip(name, detail) { rows.push(['skip', 'SKIP', name, detail || '']); }
+
+    function eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+    function st() { return store.getState(); }
+    function PH(color, pattern, size, ears) {
+      return { color: color, pattern: pattern || 'полосатый',
+               size: size || 'крупный', ears: ears || 'острые' };
+    }
+
+    function runSync() {
+      /* T2 — matchPhenotype */
+      try {
+        var ok = engine.matchPhenotype(PH('белый'), { color: 'белый' }) === true &&
+          engine.matchPhenotype(PH('белый', 'однотонный'), { color: 'белый', pattern: 'однотонный' }) === true &&
+          engine.matchPhenotype(PH('коричневый'), { color: 'белый' }) === false &&
+          engine.matchPhenotype(PH('белый'), { color: 'белый', ears: 'круглые' }) === false &&
+          engine.matchPhenotype(PH('белый'), {}) === true;
+        if (ok) pass('T2 matchPhenotype'); else fail('T2 matchPhenotype', 'неверные результаты');
+      } catch (e) { fail('T2 matchPhenotype', e.message); }
+
+      /* T3 — линейная разблокировка, цель offspring, награда */
+      store.reset();
+      try {
+        if (engine.activeQuestId(st().quests) !== 'q1') {
+          fail('T3 unlock', 'активен не q1: ' + engine.activeQuestId(st().quests));
+        } else {
+          var r1 = engine.onOffspring(PH('белый'));
+          var p1 = engine.getProgress(st().quests, 'q1');
+          var r2 = engine.onOffspring(PH('коричневый'));
+          var p2 = engine.getProgress(st().quests, 'q1');
+          var r3 = engine.onOffspring(PH('коричневый'));
+          var after = st();
+          var ok = r1.changed === false && p1.have === 0 &&
+            r2.changed === true && r2.completed === null && p2.have === 1 &&
+            r3.changed === true && r3.completed && r3.completed.id === 'q1' &&
+            after.quests.completed.indexOf('q1') !== -1 &&
+            after.resources.coins === 40 && after.resources.reputation === 1 &&
+            engine.activeQuestId(after.quests) === 'q2';
+          if (ok) pass('T3 квест q1: цель, счётчик, награда, разблокировка q2');
+          else fail('T3 квест q1', 'состояние: ' + JSON.stringify({ r1: r1, p1: p1, r2: r2, p2: p2, r3: r3, quests: after.quests, res: after.resources }));
+        }
+      } catch (e) { fail('T3 квест q1', e.message); }
+
+      /* T4 — гейт по типу цели (q2: sequence) */
+      try {
+        var s = engine.onOffspring(PH('коричневый'));
+        var t = engine.onSequenced(PH('белый'));
+        var u = engine.onSequenced(PH('коричневый'));
+        var after2 = st();
+        var ok = s.changed === false && t.changed === false &&
+          u.changed === true && u.completed && u.completed.id === 'q2' &&
+          after2.quests.completed.indexOf('q2') !== -1 &&
+          after2.resources.coins === 80 &&
+          engine.activeQuestId(after2.quests) === 'q3';
+        if (ok) pass('T4 квест q2: только onSequenced, награда');
+        else fail('T4 квест q2', JSON.stringify({ s: s, t: t, u: u, res: after2.resources }));
+      } catch (e) { fail('T4 квест q2', e.message); }
+
+      /* T5 — заказы + q3 (offspring белый) + q4 (3 круглых) + q5 (order) */
+      try {
+        var o1 = engine.completeOrder('o1');
+        var after3 = st();
+        var ok1 = o1.ok === true && o1.reward.coins === 40 &&
+          engine.isOrderDone(after3.quests, 'o1') &&
+          after3.resources.coins === 120 &&
+          engine.activeQuestId(after3.quests) === 'q3' &&
+          o1.questCompleted === null;
+        if (!ok1) throw new Error('o1: ' + JSON.stringify({ o1: o1, coins: after3.resources.coins }));
+
+        var o1again = engine.completeOrder('o1');
+        if (o1again.ok !== false) throw new Error('повторный o1 должен быть ok:false');
+
+        var w = engine.onOffspring(PH('белый'));
+        if (!w.completed || w.completed.id !== 'q3') throw new Error('q3 не выполнен: ' + JSON.stringify(w));
+
+        var e1 = engine.onOffspring(PH('коричневый', 'полосатый', 'мелкий', 'круглые'));
+        var e2 = engine.onOffspring(PH('коричневый', 'полосатый', 'мелкий', 'круглые'));
+        var e3 = engine.onOffspring(PH('коричневый', 'полосатый', 'мелкий', 'круглые'));
+        var after4 = st();
+        if (!e3.completed || e3.completed.id !== 'q4') throw new Error('q4 не выполнен: ' + JSON.stringify({ e1: e1, e2: e2, e3: e3 }));
+        if (after4.quests.completed.join(',') !== 'q1,q2,q3,q4') throw new Error('completed: ' + after4.quests.completed);
+
+        var o2 = engine.completeOrder('o2');
+        var after5 = st();
+        if (!o2.ok || !o2.questCompleted || o2.questCompleted.id !== 'q5') {
+          throw new Error('q5 не выполнен заказом: ' + JSON.stringify(o2));
+        }
+        if (engine.activeQuestId(after5.quests) !== null) throw new Error('все квесты должны быть выполнены');
+        if (after5.resources.coins !== 330) {
+          throw new Error('монеты: ' + after5.resources.coins + ' (ожидается 330)');
+        }
+        pass('T5 заказы q3–q5: награды, повтор запрещён, все квесты закрыты');
+      } catch (e) { fail('T5 заказы q3–q5', e.message); }
+
+      /* T6 — listOrders: match по фенотипам вольера */
+      store.reset();
+      try {
+        /* Стартовые: c1/c2 Aa Bb Cc Dd (коричневый полосатый крупный острые),
+         * c3 aa bb cc dd (белый однотонный мелкий круглые). */
+        var list = engine.listOrders();
+        var byId = {};
+        list.forEach(function (o) { byId[o.id] = o; });
+        var ok = list.length === 5 &&
+          byId.o1.match === 'c1' &&
+          byId.o2.match === 'c1' &&
+          byId.o4.match === 'c1' &&
+          byId.o3.match === 'c3' &&
+          byId.o5.match === 'c3' &&
+          list.every(function (o) { return o.done === false; });
+        if (ok) pass('T6 listOrders: match по стартовому вольеру');
+        else fail('T6 listOrders', JSON.stringify(list.map(function (o) { return { id: o.id, match: o.match, done: o.done }; })));
+      } catch (e) { fail('T6 listOrders', e.message); }
+
+      /* T7 — isQuestsShape (безопасность формы файла) */
+      try {
+        var good = engine.isQuestsShape(engine.QUESTS_DATA) === true;
+        var bad1 = JSON.parse(JSON.stringify(engine.QUESTS_DATA)); bad1.quests[0].goal.need = 0;
+        var bad2 = JSON.parse(JSON.stringify(engine.QUESTS_DATA)); bad2.orders[0].phen = {};
+        var bad3 = JSON.parse(JSON.stringify(engine.QUESTS_DATA)); bad3.version = 2;
+        var ok = good && !engine.isQuestsShape(bad1) && !engine.isQuestsShape(bad2) && !engine.isQuestsShape(bad3);
+        if (ok) pass('T7 isQuestsShape: форма валидируется, битые отклоняются');
+        else fail('T7 isQuestsShape', 'good=' + good + ' bad1=' + engine.isQuestsShape(bad1) + ' bad2=' + engine.isQuestsShape(bad2) + ' bad3=' + engine.isQuestsShape(bad3));
+      } catch (e) { fail('T7 isQuestsShape', e.message); }
+    }
+
+    function render() {
+      var failed = rows.filter(function (r) { return r[0] === 'fail'; }).length;
+      var passed = rows.filter(function (r) { return r[0] === 'pass'; }).length;
+      var skipped = rows.filter(function (r) { return r[0] === 'skip'; }).length;
+      var html = '<p id="verdict" class="' + (failed ? 'fail" style="color:#c0392b' : 'pass" style="color:#1a7f37') +
+        ';">' + (failed ? 'FAIL (' + passed + ' PASS, ' + failed + ' FAIL'
+                        : 'PASS (' + passed + ' PASS' + (skipped ? ', ' + skipped + ' SKIP' : '') + ')') +
+        ')</p><table><tr><th>Статус</th><th>Тест</th><th>Детали</th></tr>';
+      rows.forEach(function (r) {
+        html += '<tr><td class="' + r[0] + '">' + r[1] + '</td><td>' + r[2] + '</td><td><pre>' +
+          (r[3] ? r[3].replace(/[&<>]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]; }) : '') +
+          '</pre></td></tr>';
+      });
+      html += '</table>';
+      out.innerHTML = html;
+    }
+
+    /* T1 — вшитая копия === js/data/quests.json (http только). */
+    fetch('../js/data/quests.json', { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (fileData) {
+        try {
+          if (eq(engine.QUESTS_DATA, fileData)) {
+            pass('T1 вшитая копия === js/data/quests.json');
+          } else {
+            var diff = [];
+            var f = JSON.parse(JSON.stringify(fileData));
+            var e = JSON.parse(JSON.stringify(engine.QUESTS_DATA));
+            if (e.quests.length !== f.quests.length) diff.push('кол-во квестов: вшит ' + e.quests.length + ', файл ' + f.quests.length);
+            if (e.orders.length !== f.orders.length) diff.push('кол-во заказов: вшит ' + e.orders.length + ', файл ' + f.orders.length);
+            e.quests.forEach(function (q, i) { if (f.quests[i] && !eq(q, f.quests[i])) diff.push('квест ' + q.id); });
+            e.orders.forEach(function (o, i) { if (f.orders[i] && !eq(o, f.orders[i])) diff.push('заказ ' + o.id); });
+            if (!eq(e, f) && diff.length === 0) diff.push('непоименованные отличия');
+            fail('T1 вшитая копия === js/data/quests.json', diff.join('; '));
+          }
+        } catch (e2) { fail('T1 вшитая копия === js/data/quests.json', e2.message); }
+        runSync();
+        render();
+      })
+      .catch(function (e) {
+        skip('T1 вшитая копия === js/data/quests.json', e.message + ' — запускать по http://');
+        runSync();
+        render();
+      });
+  })();
+  </script>
+</body>
+</html>

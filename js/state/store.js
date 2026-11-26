@@ -24,12 +24,25 @@
 
   function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
 
+  /* Стартовые существа (фаза 4c): без них новый игрок не может начать
+   * цикл «скрестил → продал → выполнил заказ». Детерминированные пары
+   * (порядок признаков вида golo: color, pattern, size, ears):
+   *  c1, c2 — гетерозиготы Aa Bb Cc Dd (классическое расщепление 3:1);
+   *  c3 — чистый рецессив aa bb cc dd (белый, однотонный, мелкий, круглые). */
+  function starterCreatures() {
+    return [
+      { id: 'c1', species: 'golo', pairs: [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd']] },
+      { id: 'c2', species: 'golo', pairs: [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd']] },
+      { id: 'c3', species: 'golo', pairs: [['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']] }
+    ];
+  }
+
   function initialState() {
     return {
       version: 1,
-      enclosure: [],                                  // геномы, лимит slotLimit
+      enclosure: starterCreatures(),                   // геномы, лимит slotLimit
       resources: { coins: 0, reputation: 0 },
-      quests: {},                                     // прогресс квестов (фаза 4)
+      quests: {},                                       // {completed:[], progress:{}, ordersDone:[]} — фаза 4c
       slotLimit: cfg().slots.base
     };
   }
@@ -152,6 +165,20 @@
   }
 
   /**
+   * Заменить прогресс квестов целиком (js/quests/questEngine.js).
+   * Форма: {completed: [id], progress: {id: number}, ordersDone: [id]}
+   * (лишние поля сохраняются — схема сейва требует только объект).
+   * @param {Object} quests — новый объект прогресса квестов
+   */
+  function setQuests(quests) {
+    if (!quests || typeof quests !== 'object' || Array.isArray(quests)) {
+      throw new Error('store: setQuests — не объект');
+    }
+    current.quests = deepCopy(quests);
+    emit();
+  }
+
+  /**
    * Заменить состояние целиком (использует save.js после валидации).
    * @param {Object} saved — валидный объект сейва
    */
@@ -179,6 +206,7 @@
     addCreature: addCreature,
     removeCreature: removeCreature,
     sellCreature: sellCreature,
+    setQuests: setQuests,
     buySlot: buySlot,
     addCoins: addCoins,
     addReputation: addReputation,

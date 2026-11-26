@@ -27,6 +27,31 @@
 
   const g = (window.GenoLab = window.GenoLab || {});
 
+  /* В модульном режиме (http://) подгружаем ядро в порядке манифеста.
+   * В классическом (file://) манифест фолбэка index.html уже всё
+   * загрузил — повторное исполнение ломало бы store/подписки. */
+  if (!window.__genolabClassic) {
+    const coreModules = [
+      './core/rng.js',
+      './core/genome.js',
+      './core/breeder.js',
+      './core/economy.js',
+      './state/store.js',
+      './state/save.js',
+      './render/creature.js',
+      './render/pennett.js',
+      './quests/questEngine.js',
+      './quests/tutorial.js',
+    ];
+    for (const m of coreModules) {
+      try {
+        await import(m);
+      } catch (err) {
+        console.warn('[ГеноЛаб] не удалось загрузить модуль:', m, err);
+      }
+    }
+  }
+
   // В модульном режиме подгружаем роутер; в классическом он уже
   // загружен ранее (манифест фолбэка в index.html).
   if (!g.router) {
@@ -71,6 +96,14 @@
     g.state.save.init();
     /* Экран мог отрендериться до загрузки сейва — перерисовываем. */
     if (typeof router.resolve === 'function') router.resolve();
+  }
+
+  /* Фаза 4c: данные квестов — из файла (http://); по file:// fetch
+   * блокируется CORS, остаётся вшитая копия в questEngine.js. */
+  if (g.quests && g.quests.questEngine && typeof g.quests.questEngine.loadQuests === 'function') {
+    g.quests.questEngine.loadQuests('js/data/quests.json').then(function (r) {
+      if (!r.ok) console.warn('[ГеноЛаб] вшитые данные квестов: ' + r.reason);
+    });
   }
 
   /* Панель ресурсов в шапке — обновляется при изменении состояния. */
