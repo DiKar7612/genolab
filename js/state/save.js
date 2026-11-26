@@ -72,6 +72,19 @@
     if (!obj.quests || typeof obj.quests !== 'object' || Array.isArray(obj.quests)) {
       errors.push('quests: ожидается объект');
     }
+    /* Фаза 5: счётчик прогнозов. Поле может отсутствовать в сейвах до
+     * фазы 5 — load()/importFile() доподнимают дефолт перед валидацией,
+     * поэтому здесь проверяем только форму, если поле есть. */
+    if ('predictions' in obj) {
+      var pr = obj.predictions;
+      if (!pr || typeof pr !== 'object' || Array.isArray(pr) ||
+          typeof pr.total !== 'number' || !isFinite(pr.total) || pr.total < 0 ||
+          Math.floor(pr.total) !== pr.total ||
+          typeof pr.hits !== 'number' || !isFinite(pr.hits) || pr.hits < 0 ||
+          Math.floor(pr.hits) !== pr.hits || pr.hits > pr.total) {
+        errors.push('predictions: ожидается объект {total, hits} — целые >= 0, hits <= total');
+      }
+    }
     if (typeof obj.slotLimit !== 'number' || !isFinite(obj.slotLimit) ||
         Math.floor(obj.slotLimit) !== obj.slotLimit || obj.slotLimit < 1 ||
         obj.slotLimit > maxSlots()) {
@@ -127,6 +140,11 @@
      * отсутствующее поле трактуем как дефолт (версия схемы не меняется). */
     if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('quests' in obj)) {
       obj.quests = {};
+    }
+    /* Сейвы до фазы 5: отсутствия поля predictions = свежий счётчик
+     * (версия схемы genolab_save_v1 не меняется). */
+    if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('predictions' in obj)) {
+      obj.predictions = { total: 0, hits: 0 };
     }
     var v = validate(obj);
     if (!v.ok) {
@@ -211,6 +229,10 @@
           lastError = 'Импорт: файл не является валидным JSON (' + e.message + ').';
           resolve({ ok: false, reason: lastError });
           return;
+        }
+        /* Файлы-сейвы до фазы 5: дефолт счётчика прогнозов. */
+        if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('predictions' in obj)) {
+          obj.predictions = { total: 0, hits: 0 };
         }
         var v = validate(obj);
         if (!v.ok) {

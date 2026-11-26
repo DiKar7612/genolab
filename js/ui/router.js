@@ -1,8 +1,8 @@
 /**
  * ГеноЛаб — hash-роутер (js/ui/router.js).
  *
- * Переключение пяти экранов без перезагрузки: маршрут = location.hash
- * (#/enclosure, #/breed, #/creature, #/orders, #/codex).
+ * Переключение шести экранов без перезагрузки: маршрут = location.hash
+ * (#/enclosure, #/breed, #/creature, #/predictor, #/orders, #/codex).
  *
  * Двойной режим загрузки (модуль по http:// / классический скрипт
  * для file:// — браузеры блокируют ES-модули по протоколу file):
@@ -16,6 +16,7 @@
     enclosure: '#/enclosure', // Вольер
     breed: '#/breed',         // Скрещивание
     creature: '#/creature',   // Карточка существа
+    predictor: '#/predictor', // Предсказатель (фаза 5)
     orders: '#/orders',       // Заказы
     codex: '#/codex',         // Кодекс
   };
@@ -27,6 +28,9 @@
     constructor() {
       /** @type {Map<string, (container: HTMLElement) => void>} */
       this.handlers = new Map();
+
+      /** Имя активного экрана (для подписок экранов на store). */
+      this.active = DEFAULT_ROUTE;
 
       global.addEventListener('hashchange', () => this.resolve());
 
@@ -72,6 +76,7 @@
     /** Показать активный экран: вызвать его рендер в контейнере. */
     resolve() {
       const name = this.currentRoute();
+      this.active = name;
 
       const container = document.getElementById(SCREENS_CONTAINER_ID);
       if (container) {

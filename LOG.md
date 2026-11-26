@@ -348,3 +348,33 @@
   - Регрессия по http://127.0.0.1:8137/tests/: genome «PASS (9 PASS)», breeder «PASS (9/9)», render_grid «PASS (11/11)», config_test «PASS (5/5)», quests_test «PASS (7 PASS)» — PASS
 - Что НЕ сделано / НЕ проверено: ничего сверх задания; импорт файла-объекта старой схемы (importFile) через UI не прогонялся — код идёт через ту же validate, а путь load() проверен
 - Файлы вне задания: всё, кроме js/state/save.js, docs/api.md, LOG.md — не трогал
+
+## [Фаза 5] 2025-11-26 20:30 — Полировка: Предсказатель, a11y, тач-таргеты, контраст, регрессия
+- Что сделано:
+  - js/ui/screens/predictor.js (НОВОЕ) — экран «Предсказатель»: выбор родителей A/B из вольера, целевой фенотип (4 селекта по признакам), ввод прогноза в %, «Проверить». Игра считает факт через pennettGrid по каждому признаку и произведение долей; попадание при |прогноз − факт| ≤ 5 процентных пунктов (допуск ±5 п.п. — ДОПУЩЕНИЕ: ТЗ §3.4 допуск не конкретизирует, зафиксировано в этом журнале). При промахе — формула, текст отклонения и разбор: 4 решётки Пеннета 2×2 с подсветкой целевых клеток. Счётчик точности в store (см. ниже). Зарегистрирован в main.js (модульный манифест) и index.html (классическая цепочка) — критерий фазы 5 (1)
+  - js/state/store.js — store.predictions {total, hits} + recordPrediction(hit:boolean) (валидация: бросает исключение на не-булеане); js/state/save.js — валидация/мягкая деградация predictions (паттерн как у quests)
+  - js/ui/toast.js (НОВОЕ) — g.ui.toast.show(msg, type): aria-live="polite", 3000 мс TTL, animation out 250 мс, только textContent; CSS — .toast* в components.css. Интеграция: enclosure.js (продать/экспорт/импорт), orders.js (выполнение заказа)
+  - js/ui/router.js — маршрут '#/predictor', «шести экранов»; НОВОЕ: this.active (текущий экран) — исправлена гонка: подписки всех 5+1 экранов теперь ре-рендерят только если g.router.active совпадает с их именем (breed, creature, enclosure, orders, predictor)
+  - js/ui/screens/breed.js — диалог выбора при неполном вольере: оверлей, role="dialog" + aria-modal, закрытие: ×, Escape, клик по фону, «Отмена», свайп вниз (порог 40 px); единый cancelDialog()
+  - js/ui/screens/codex.js — только исправление устаревшего текста (реализация кодекса — фаза 1.1, не трогал)
+  - CSS: base.css — form/select/input ≥ 44 px, checkbox 24 px, :focus-visible (outline 2px --accent) уже был; layout.css — nav__link 44 px; components.css — анимация смены экранов (screen-fade 0.18 s), btn ≥ 44 px, pennett__cell 44 px, .toast*
+  - КОНТРАСТ (критерий фазы 5 (3)): --accent #c2542d на --bg — 4.24 < 4.5 → изменены токены: --accent #a8431f, --accent-hover #8a3518, --accent-dim/glow — rgba(168,67,31,…), --gold #b8860b (3.25) → #8a6508
+- Запуск и проверка (chrome-devtools MCP, http://127.0.0.1:8137, node --check):
+  - Критерий 1: grep -rn "alert(\|console.log(" js/ | wc -l → 0
+  - Критерий 2: все 6 экранов (enclosure 31, breed 8, creature 7, predictor 7, orders 11, codex 6 = 71 элемент button/a) — 0 без aria-label/текста; :focus-visible — outline 2px --accent, offset 2px (base.css)
+  - Критерий 3 (до/после, формула WCAG, посчитано в браузере): ink/bg 11.56 ✓, ink/surface 12.45 ✓, ink-soft/surface 5.19 ✓, #fff/accent 4.57→6.02 ✓, accent/bg 4.24→5.59 ✓, ok/surface 4.86 ✓, danger/surface 6.26 ✓, gold/surface 3.25→5.32 ✓ — ВСЕ ≥ 4.5
+  - Критерий 4: TTI ≈ 0.14 с (performance.now() сразу после load: GenoLab определён, экран отрендерен; локальный http)
+    0.14 с — метод performance.now() после load, локальный http; строгий TTI не измерялся, критерий ТЗ <30 с выполнен с запасом
+  - Критерий 5: скриншоты всех 6 экранов при вьюпорте 360×640 (emulate, dpr 2, mobile, touch) + fullPage скриншот разбора промаха. Пути (сохранены в workspace-корень MCP, т.к. Temp вне workspace-роутов): F:\Pi_Cli\genolab_phase5\enclosure.png, breed.png, creature.png, predictor.png, orders.png, codex.png, predictor_breakdown.png. Vision-проверка: вёрстка не ломается, навигация видна, текст не обрезан, новая палитра на месте
+  - Критерий 6 (E2E predictor, http://): промах — «Ваш прогноз: 60% · факт: 0,39% — не попадано (отклонение 59,61% от факта)», формула «25% × 25% × 25% × 25% = 0,39%», 4 признака в разборе, 4 целевые клетки подсвечены (aa/bb/cc/dd); попадание (проверено ранее): 32% против факта 31.64% (75%^4) → hit; точность «Точность прогнозов: 1 из 5 (20%)»; после перезагрузки страницы predictions {total, hits} восстановлены из localStorage
+  - E2E breed (http://, полный вольер 12/12): диалог не появляется; при 11/12: dialog aria-modal="true", 3 пункта, «Оставить» → 12/12, ribbon «В вольере: #c4»; закрытие Escape / оверлей / × / «Отмена» — 4/4
+  - Регрессия тестовых страниц (http://): genome PASS (9), breeder PASS (9/9), config PASS (5/5), quests PASS (7), render_grid PASS (11/11) — 0 FAIL
+  - Smoke file://: 6/6 маршрутов — GenoLab + predictor + toast загружены, активный экран отрендерен (h1: Вольер / Скрещивание / Карточка существа / Предсказатель / Заказы / Кодекс)
+  - node --check: все 20 js-файлов — синтаксис OK
+- Что НЕ сделано / НЕ проверено:
+  - tutorial.js — не трогал (по решению пользователя)
+  - codex.js — только текст; реализация справочника — фаза 1.1 по ТЗ
+  - Lighthouse-аудит, эмуляция prefers-reduced-motion — не выполнялись
+  - Реальная тач-проверка на устройстве — только emulate (dpr 2, touch); кликабельность 44 px — расчётно
+- Файлы вне задания: не трогал (кроме LOG.md)
+- Коммит: не выполнен — по политике фазы 5 (5) коммит только после явного приёма пользователем

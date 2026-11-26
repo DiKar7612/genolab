@@ -14,7 +14,7 @@
     '<section class="screen" aria-labelledby="screen-title">' +
     '<h1 class="screen__title" id="screen-title">Кодекс</h1>' +
     '<div class="screen__stub">' +
-    '<p class="screen__hint">Таблица фенотипов появится в фазе 4</p>' +
+    '<p class="screen__hint">Справочник по фенотипам и признакам — в версии 1.1.</p>' +
     '</div>' +
     '</section>';
 

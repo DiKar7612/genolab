@@ -33,8 +33,11 @@
     '.breed__ribbon-pheno{font-size:var(--font-size-sm);color:var(--ink-soft);text-align:center}' +
     '.breed__ribbon-status{font-size:var(--font-size-sm);color:var(--accent);text-align:center}' +
     '.breed__msg{min-height:1.2em;margin-top:8px;color:var(--ink-soft)}' +
-    '.breed__dialog{border:2px solid var(--accent);border-radius:var(--radius);padding:12px;margin-top:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}' +
-    '.breed__dialog-item{display:flex;align-items:center;gap:8px}' +
+    /* Фаза 5: диалог — модальный оверлей (фон/Escape/свайп вниз закрывают). */
+    '.breed__dialog-overlay{position:fixed;inset:0;background:rgba(61,50,41,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}' +
+    '.breed__dialog{border:2px solid var(--accent);border-radius:var(--radius);padding:16px;background:var(--surface);display:flex;flex-direction:column;gap:8px;max-width:440px;width:100%;max-height:80vh;overflow:auto;animation:breed-pop .25s ease both;box-shadow:var(--shadow-m)}' +
+    '.breed__dialog-item{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer}' +
+    '.breed__dialog-close{align-self:flex-end;min-height:44px;padding:8px 14px}' +
     '.breed__dialog-actions{display:flex;gap:8px;flex-wrap:wrap}';
 
   function esc(s) {
@@ -133,8 +136,11 @@
     var st = getStore().getState();
     var liveFree = st.slotLimit - st.enclosure.length;
     var canKeep = dialog.free > 0 || dialog.addedIds.length > 0;
-    var html = '<div class="breed__dialog" role="dialog" aria-label="Вольер полон">' +
+    var html = '<div class="breed__dialog-overlay">' +
+      '<div class="breed__dialog" role="dialog" aria-modal="true" aria-label="Вольер полон">' +
       '<h3>Вольер полон (' + st.enclosure.length + '/' + st.slotLimit + ')</h3>' +
+      '<button class="btn breed__dialog-close" type="button" data-breed-dlg-cancel ' +
+      'aria-label="Закрыть диалог">\u2715</button>' +
       '<p class="breed__msg">Свободных слотов: ' + liveFree +
       (canKeep
         ? ' — отметьте, кого оставить (до ' + dialog.free +
@@ -161,8 +167,28 @@
         '<button class="btn" type="button" data-breed-dlg-cancel>Понятно</button>' +
         '</div>';
     }
-    return html + '</div>';
+    return html + '</div></div>';
   }
+
+  /* Фаза 5: единый выход из диалога (кнопки «Отмена/Понятно», крестик,
+   * клик по фону, Escape, свайп вниз по диалогу). */
+  function cancelDialog() {
+    if (!dialog) return;
+    lastResults.forEach(function (lr) {
+      if (lr.status === 'pending') lr.status = 'out';
+    });
+    dialog = null;
+    if (dlgEscapeHandler) {
+      global.document.removeEventListener('keydown', dlgEscapeHandler);
+      dlgEscapeHandler = null;
+    }
+    message = 'Потомки, не попавшие в вольер, выпущены.';
+    if (currentContainer && global.document.contains(currentContainer)) {
+      renderScreen(currentContainer);
+    }
+  }
+
+  var dlgEscapeHandler = null;
 
   function renderScreen(container) {
     var st = getStore().getState();
@@ -279,20 +305,49 @@
         }
         message = kept > 0 ? 'В вольер добавлено: ' + kept : 'Выбора не было — потомки выпущены.';
         dialog = null;
+        if (dlgEscapeHandler) {
+          global.document.removeEventListener('keydown', dlgEscapeHandler);
+          dlgEscapeHandler = null;
+        }
         renderScreen(container);
       });
     }
 
-    var cancel = container.querySelector('[data-breed-dlg-cancel]');
-    if (cancel) {
-      cancel.addEventListener('click', function () {
-        lastResults.forEach(function (lr) {
-          if (lr.status === 'pending') lr.status = 'out';
-        });
-        dialog = null;
-        message = 'Потомки, не попавшие в вольер, выпущены.';
-        renderScreen(container);
+    /* Все кнопки с data-breed-dlg-cancel (кнопки + крестик) — один выход. */
+    container.querySelectorAll('[data-breed-dlg-cancel]').forEach(function (btn) {
+      btn.addEventListener('click', function () { cancelDialog(); });
+    });
+
+    /* Клик по фону закрывает (сам диалог — нет). */
+    var overlay = container.querySelector('.breed__dialog-overlay');
+    if (overlay) {
+      overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) cancelDialog();
       });
+    }
+
+    /* Escape закрывает (слушатель на document — один, предыдущий снят). */
+    if (dlgEscapeHandler) {
+      global.document.removeEventListener('keydown', dlgEscapeHandler);
+    }
+    dlgEscapeHandler = function (e) {
+      if (e.key === 'Escape' && dialog) cancelDialog();
+    };
+    global.document.addEventListener('keydown', dlgEscapeHandler);
+
+    /* Свайп вниз по диалогу закрывает (мобильный жест, TZ §8.6). */
+    var dlgEl = container.querySelector('.breed__dialog');
+    if (dlgEl) {
+      var touchY = null;
+      dlgEl.addEventListener('touchstart', function (e) {
+        touchY = e.touches[0].clientY;
+      }, { passive: true });
+      dlgEl.addEventListener('touchend', function (e) {
+        if (touchY === null) return;
+        var dy = e.changedTouches[0].clientY - touchY;
+        if (dy < -40) cancelDialog();
+        touchY = null;
+      }, { passive: true });
     }
   }
 
@@ -375,7 +430,8 @@
    * изменении состояния (добавление/продажа в вольере). */
   if (g.state && g.state.store && typeof g.state.store.subscribe === 'function') {
     g.state.store.subscribe(function () {
-      if (!busy && currentContainer && global.document.contains(currentContainer)) {
+      if (!busy && currentContainer && global.document.contains(currentContainer) &&
+          (!g.router || g.router.active === 'breed')) {
         renderScreen(currentContainer);
       }
     });

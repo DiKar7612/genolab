@@ -29,6 +29,13 @@
     return parts.join(', ');
   }
 
+  /* Фаза 5: тосты (ui/toast.js грузится раньше экранов). */
+  function toast(msg, type) {
+    if (g.ui && g.ui.toast && typeof g.ui.toast.show === 'function') {
+      g.ui.toast.show(msg, type);
+    }
+  }
+
   function cardHTML(c, price) {
     var core = g.core;
     var phen = core.genome.genomeToPhenotype(c);
@@ -95,7 +102,10 @@
       });
       sell.addEventListener('click', function () {
         var r = store.sellCreature(id);
-        if (r.ok) screenRender(container);
+        if (r.ok) {
+          toast('Продано #' + id + ' (+' + price + ' монет)', 'ok');
+          screenRender(container);
+        }
         else {
           var box = cardEl.querySelector('.enclosure__card-actions');
           box.textContent = r.reason;
@@ -111,6 +121,7 @@
       msg.textContent = r.ok ? ('Скачан файл ' + r.filename) : r.reason;
       actions.appendChild(msg);
       setTimeout(function () { msg.remove(); }, 4000);
+      toast(r.ok ? ('Скачан файл ' + r.filename) : r.reason, r.ok ? 'ok' : 'err');
     });
 
     container.querySelector('.enclosure__import-input').addEventListener('change', function (e) {
@@ -124,6 +135,7 @@
         msg.textContent = r.ok ? 'Сейв импортирован.' : r.reason;
         actions.appendChild(msg);
         setTimeout(function () { msg.remove(); }, 4000);
+        toast(r.ok ? 'Сейв импортирован.' : r.reason, r.ok ? 'ok' : 'err');
       });
     });
   }
@@ -137,7 +149,8 @@
    * изменении состояния (добавление/продажа/импорт сейва). */
   if (g.state && g.state.store && typeof g.state.store.subscribe === 'function') {
     g.state.store.subscribe(function () {
-      if (currentContainer && global.document.contains(currentContainer)) {
+      if (currentContainer && global.document.contains(currentContainer) &&
+          (!g.router || g.router.active === 'enclosure')) {
         renderScreen(currentContainer);
       }
     });

@@ -55,20 +55,26 @@ body {
 
 .nav__link {
   flex: 0 0 auto;
-  min-height: 36px;
+  /* тактильная цель: не менее 44px (фаза 5, TZ §8.6) */
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
-  padding: 5px 14px;
+  padding: 8px 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
   font-size: var(--font-size-sm);
   white-space: nowrap;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease,
+    background 0.15s ease, transform 0.05s ease;
 }
 
 .nav__link:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.nav__link:active:not(.is-active) {
+  transform: translateY(1px);
 }
 
 .nav__link.is-active {

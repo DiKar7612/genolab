@@ -43,7 +43,10 @@
       enclosure: starterCreatures(),                   // геномы, лимит slotLimit
       resources: { coins: 0, reputation: 0 },
       quests: {},                                       // {completed:[], progress:{}, ordersDone:[]} — фаза 4c
-      slotLimit: cfg().slots.base
+      slotLimit: cfg().slots.base,
+      /* Фаза 5: счётчик прогнозов экрана «Предсказатель»
+       * (TZ §3.4 — мини-тренажёр: всего проверок / попаданий). */
+      predictions: { total: 0, hits: 0 }
     };
   }
 
@@ -187,8 +190,14 @@
       version: 1,
       enclosure: deepCopy(saved.enclosure),
       resources: deepCopy(saved.resources),
-      quests: deepCopy(saved.quests),
-      slotLimit: saved.slotLimit
+      quests: saved.quests ? deepCopy(saved.quests) : {},
+      slotLimit: saved.slotLimit,
+      /* Мягкая деградация сейвов до фазы 5: отсутствия поля нет —
+       * save.js доподнимает {total:0, hits:0} (схема v1 без изменений). */
+      predictions: (saved.predictions && typeof saved.predictions === 'object' &&
+        !Array.isArray(saved.predictions))
+        ? deepCopy(saved.predictions)
+        : { total: 0, hits: 0 }
     };
     emit();
   }
@@ -197,6 +206,22 @@
     current = initialState();
     emit();
     return getState();
+  }
+
+  /**
+   * Записать проверку прогноза (экран «Предсказатель», фаза 5, TZ §3.4).
+   * total +1; при hit === true также hits +1.
+   * @param {boolean} hit — прогноз точен (в пределах допустимого отклонения)
+   * @returns {{total: number, hits: number}} — обновлённый счётчик (копия)
+   */
+  function recordPrediction(hit) {
+    if (typeof hit !== 'boolean') {
+      throw new Error('store: recordPrediction — hit не boolean');
+    }
+    current.predictions.total += 1;
+    if (hit) current.predictions.hits += 1;
+    emit();
+    return { total: current.predictions.total, hits: current.predictions.hits };
   }
 
   state.store = {
@@ -211,6 +236,7 @@
     addCoins: addCoins,
     addReputation: addReputation,
     applyState: applyState,
+    recordPrediction: recordPrediction,
     reset: reset,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

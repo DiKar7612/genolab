@@ -176,7 +176,8 @@
 
   if (g.state && g.state.store && typeof g.state.store.subscribe === 'function') {
     g.state.store.subscribe(function () {
-      if (currentContainer && document.contains(currentContainer)) {
+      if (currentContainer && document.contains(currentContainer) &&
+          (!g.router || g.router.active === 'creature')) {
         renderScreen(currentContainer);
       }
     });

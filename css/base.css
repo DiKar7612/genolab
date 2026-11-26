@@ -11,15 +11,15 @@
   --ink: #3d3229;             /* основной текст (какао) */
   --ink-soft: #7a6a5c;        /* вторичный текст */
   --line: #e5d9c9;            /* границы, разделители */
-  --accent: #c2542d;          /* терракота: кнопки, акценты, CTA */
-  --accent-hover: #a8431f;    /* hover активных кнопок */
-  --gold: #b8860b;            /* монеты, награды */
+  --accent: #a8431f;          /* терракота: кнопки, акценты, CTA (контраст ≥ 4.5 по ART_STYLE.md §2) */
+  --accent-hover: #8a3518;    /* hover активных кнопок */
+  --gold: #8a6508;            /* монеты, награды (контраст ≥ 4.5 по ART_STYLE.md §2) */
   --ok: #4a7c59;              /* успех */
   --danger: #a63d3d;          /* ошибки */
 
   /* Производные: полупрозрачные варианты и текст на акценте */
-  --accent-dim: rgba(194, 84, 45, 0.35);   /* приглушённые рамки, hover */
-  --accent-glow: rgba(194, 84, 45, 0.12);  /* подсветка выбранного */
+  --accent-dim: rgba(168, 67, 31, 0.35);   /* приглушённые рамки, hover */
+  --accent-glow: rgba(168, 67, 31, 0.12);  /* подсветка выбранного */
   --on-accent: #ffffff;                  /* текст на --accent */
 
   /* --- Совместимость: имена старой палитры (фаза 0–2) ---
@@ -116,6 +116,29 @@ a {
 
 [hidden] {
   display: none !important;
+}
+
+/* --- Формы: тактильные цели не менее 44px (фаза 5, TZ §8.6) ---
+   Локальные <style> экранов могут переопределять padding,
+   min-height сохраняется. */
+select,
+input[type="number"],
+input[type="text"] {
+  min-height: 44px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
 }
 
 /* Фокус для клавиатурной навигации (ART_STYLE.md §4) */

@@ -176,6 +176,11 @@
             : '';
           message = 'Заказ выполнен: #' + creatureId + ' передан. +' +
             r.reward.coins + ' мон., +' + r.reward.reputation + ' реп.' + extra;
+          /* Фаза 5: короткое подтверждение тостом (TZ §8.6). */
+          if (g.ui && g.ui.toast && typeof g.ui.toast.show === 'function') {
+            g.ui.toast.show('Заказ выполнен: +' + r.reward.coins + ' мон., +' +
+              r.reward.reputation + ' реп.', 'ok');
+          }
         } else {
           message = 'Ошибка: ' + r.reason;
         }
@@ -241,7 +246,8 @@
   /* Перерисовка при изменении состояния (переход к другим экранам — нет). */
   if (g.state && g.state.store && typeof g.state.store.subscribe === 'function') {
     g.state.store.subscribe(function () {
-      if (currentContainer && document.contains(currentContainer)) {
+      if (currentContainer && document.contains(currentContainer) &&
+          (!g.router || g.router.active === 'orders')) {
         renderScreen(currentContainer);
       }
     });

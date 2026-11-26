@@ -7,6 +7,13 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* лёгкий переход при смене экрана (фаза 5, TZ §8.6) */
+  animation: screen-fade 0.18s ease;
+}
+
+@keyframes screen-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
 }
 
 .screen__title {
@@ -31,7 +38,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 40px;
+  /* тактильная цель: не менее 44px (фаза 5, TZ §8.6) */
+  min-height: 44px;
   padding: 8px 16px;
   border: 1px solid var(--accent-dim);
   border-radius: var(--radius);
@@ -39,12 +47,18 @@
   color: var(--ink);
   font-size: var(--font-size-sm);
   font-weight: 500;
-  transition: border-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, filter 0.15s ease,
+    background 0.15s ease, transform 0.05s ease;
 }
 
 .btn:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.97);
 }
 
 .btn--primary {
@@ -285,6 +299,8 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
+  /* тактильная цель: не менее 44px (фаза 5, TZ §8.6) */
+  min-height: 44px;
   padding: 6px 4px;
   background: var(--surface);
   border: 2px solid var(--line);
@@ -392,6 +408,48 @@
 
 .codex-table th {
   color: var(--accent);
+}
+
+/* --- Тосты: короткие подтверждения (фаза 5, TZ §8.6) --- */
+.toast-region {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+  max-width: 92vw;
+}
+
+.toast {
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-s);
+  box-shadow: var(--shadow-m);
+  font-size: var(--font-size-sm);
+  color: var(--ink);
+  max-width: 92vw;
+  animation: toast-in 0.2s ease;
+}
+
+.toast--ok { border-left-color: var(--ok); }
+.toast--err { border-left-color: var(--danger); }
+
+.toast--out {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- Пустые состояния --- */

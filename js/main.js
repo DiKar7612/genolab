@@ -68,6 +68,15 @@
     return;
   }
 
+  // Фаза 5: тосты — UI-утилита, экраны используют g.ui.toast.show().
+  if (!window.__genolabClassic) {
+    try {
+      await import('./ui/toast.js');
+    } catch (err) {
+      console.warn('[ГеноЛаб] не удалось загрузить ui/toast.js:', err);
+    }
+  }
+
   // Модули экранов. В классическом режиме (file://) они уже
   // загружены манифестом фолбэка — подгружать повторно не нужно.
   if (!window.__genolabClassic) {
@@ -75,6 +84,7 @@
       './ui/screens/enclosure.js',
       './ui/screens/breed.js',
       './ui/screens/creature.js',
+      './ui/screens/predictor.js',
       './ui/screens/orders.js',
       './ui/screens/codex.js',
     ];
