@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тесты: config (фаза 3)</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <style>
+    #results table { border-collapse: collapse; margin: 12px 0; }
+    #results th, #results td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+    #results .pass { color: #1a7f37; font-weight: bold; }
+    #results .fail { color: #c0392b; font-weight: bold; }
+    #results .skip { color: #b07d1a; font-weight: bold; }
+    #verdict { font-size: 18px; }
+  </style>
+  <!-- Классические скрипты (не ESM). fetch('../js/data/config.json') работает
+       только по http://; с file:// T1 помечается SKIP (CORS), как в ТЗ. -->
+  <script src="../js/core/economy.js"></script>
+</head>
+<body style="padding: 24px;">
+  <h1>Тесты: js/core/economy.js + js/data/config.json (фаза 3)</h1>
+  <p>Identity-проверка: вшитая копия CONFIG в economy.js идентична файлу
+     js/data/config.json (по http://, паттерн tests/genome.test.html).
+     Плюс проверка формы конфига (isConfigShape) и цен (getPrice).
+     Для identity-теста открыть по http:// (локальный статический сервер),
+     с file:// — T1 SKIP, остальные тесты выполняются.</p>
+  <div id="results"><p>Выполняются тесты…</p></div>
+  <script>
+  (function () {
+    'use strict';
+    var out = document.getElementById('results');
+    if (!window.GenoLab || !window.GenoLab.core || !window.GenoLab.core.economy) {
+      out.innerHTML = '<p class="fail">FAIL: модуль GenoLab.core.economy не загрузился</p>';
+      return;
+    }
+    var eco = window.GenoLab.core.economy;
+    var results = [];
+
+    function report(name, status, lines) {
+      results.push({ name: name, status: status, lines: lines || [] });
+    }
+
+    function deepEqual(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+    /* T1. Identity: файл js/data/config.json == вшитой копии CONFIG (по http://). */
+    (function () {
+      fetch('../js/data/config.json', { cache: 'no-store' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (file) {
+          if (deepEqual(file, eco.CONFIG)) {
+            report('T1. Identity: js/data/config.json == вшитая CONFIG', 'PASS',
+              ['файл и вшитая копия побайтово идентичны (JSON-сравнение)']);
+          } else {
+            report('T1. Identity: js/data/config.json == вшитая CONFIG', 'FAIL',
+              ['файл:  ' + JSON.stringify(file),
+               'вшитая: ' + JSON.stringify(eco.CONFIG)]);
+          }
+          finish();
+        })
+        .catch(function (e) {
+          /* file:// — fetch локального JSON блокируется CORS. */
+          report('T1. Identity: js/data/config.json == вшитая CONFIG', 'SKIP',
+            ['fetch не доступен на странице (' + e.message +
+             ' — вероятно file://; identity-тест выполняется по http://)']);
+          finish();
+        });
+    })();
+
+    function finish() {
+      /* T2. Форма вшитого конфига проходит валидацию. */
+      report('T2. isConfigShape(CONFIG) — true',
+        eco.isConfigShape(eco.CONFIG) ? 'PASS' : 'FAIL');
+
+      /* T3. Искажённые формы отклоняются. */
+      var mustReject = [
+        ['version = 2', Object.assign({}, eco.CONFIG, { version: 2 })],
+        ['slots.max < slots.base', { version: 1, slots: { base: 12, max: 5 },
+          prices: eco.CONFIG.prices, mutation: eco.CONFIG.mutation }],
+        ['prices.sellCreature = "20"', (function () {
+          var c = JSON.parse(JSON.stringify(eco.CONFIG));
+          c.prices.sellCreature = '20'; return c; })()],
+        ['mutation.chance = 1.5', { version: 1, slots: eco.CONFIG.slots,
+          prices: eco.CONFIG.prices, mutation: { enabled: false, chance: 1.5 } }]
+      ];
+      var t3ok = true, t3lines = [];
+      mustReject.forEach(function (case_) {
+        var r = eco.isConfigShape(case_[1]);
+        if (r !== false) { t3ok = false; t3lines.push('НЕ отклонён: ' + case_[0]); }
+        else { t3lines.push('отклонён: ' + case_[0]); }
+      });
+      report('T3. isConfigShape отклоняет искажённые формы', t3ok ? 'PASS' : 'FAIL', t3lines);
+
+      /* T4. Лишние ключи не ломают валидацию (forward-compat). */
+      var withExtra = Object.assign({}, eco.CONFIG, { future: 42 });
+      report('T4. isConfigShape допустимый конфиг с лишним ключом — true',
+        eco.isConfigShape(withExtra) ? 'PASS' : 'FAIL');
+
+      /* T5. Цены из вшитого конфига. */
+      var t5ok = eco.getPrice('sellCreature') === 20 &&
+                 eco.getPrice('buySlot') === 100 &&
+                 eco.getPrice('sequence') === 30;
+      report('T5. getPrice: sellCreature=20, buySlot=100, sequence=30', t5ok ? 'PASS' : 'FAIL');
+
+      /* Итог. */
+      var html = '<table><tr><th>Тест</th><th>Результат</th></tr>';
+      results.forEach(function (r) {
+        html += '<tr><td>' + r.name + '</td><td class="' + r.status.toLowerCase() + '">' +
+          r.status + '</td></tr>';
+        if (r.lines.length) {
+          html += '<tr><td></td><td><pre>' +
+            r.lines.join('\n').replace(/</g, '&lt;') + '</pre></td></tr>';
+        }
+      });
+      html += '</table>';
+      var passed = results.filter(function (r) { return r.status === 'PASS'; }).length;
+      var failed = results.filter(function (r) { return r.status === 'FAIL'; }).length;
+      var skipped = results.filter(function (r) { return r.status === 'SKIP'; }).length;
+      var verdict = (failed === 0)
+        ? ('ОБЩИЙ ВЕРДИКТ: PASS (' + passed + '/' + results.length +
+           (skipped ? ', SKIP ' + skipped : '') + ')')
+        : ('ОБЩИЙ ВЕРДИКТ: FAIL (' + failed + ' падений)');
+      out.innerHTML = html + '<div id="verdict" class="' +
+        (failed === 0 ? 'pass' : 'fail') + '">' + verdict + '</div>';
+      window.__configTestDone = true;
+      window.__configTestVerdict = verdict;
+    }
+  })();
+  </script>
+</body>
+</html>

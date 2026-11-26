@@ -63,4 +63,27 @@
   }
 
   router.start();
+
+  /* Фаза 3: загрузить сейв и подключить автосохранение.
+   * Ошибка повреждённого сейва отображается на экране «Вольер»
+   * (enclosure.js читает save.errorMessage()); краша нет. */
+  if (g.state && g.state.save && typeof g.state.save.init === 'function') {
+    g.state.save.init();
+    /* Экран мог отрендериться до загрузки сейва — перерисовываем. */
+    if (typeof router.resolve === 'function') router.resolve();
+  }
+
+  /* Панель ресурсов в шапке — обновляется при изменении состояния. */
+  var coinsEl = document.querySelector('.topbar__resources .resource--coins');
+  var repEl = document.querySelector('.topbar__resources .resource--rep');
+  function updateTopbar() {
+    var st = (g.state && g.state.store && g.state.store.getState()) ||
+      { resources: { coins: 0, reputation: 0 } };
+    if (coinsEl) coinsEl.textContent = 'Монеты: ' + st.resources.coins;
+    if (repEl) repEl.textContent = 'Репутация: ' + st.resources.reputation;
+  }
+  if (g.state && g.state.store && typeof g.state.store.subscribe === 'function') {
+    updateTopbar();
+    g.state.store.subscribe(updateTopbar);
+  }
 })();

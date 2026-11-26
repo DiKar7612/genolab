@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "slots": {
+    "base": 12,
+    "max": 24
+  },
+  "prices": {
+    "sellCreature": 20,
+    "buySlot": 100,
+    "sequence": 30
+  },
+  "mutation": {
+    "enabled": false,
+    "chance": 0.03
+  }
+}
