@@ -234,3 +234,31 @@
   - Коммит не делался — в промпте не требуется; git status: 5 изменённых + 2 новых файла
 - Файлы вне задания: js/core/genome.js, js/core/breeder.js, js/render/*, css/*, index.html, assets/*, species.json — не трогал. index.html — манифест классических <script> уже содержал все пути (economy.js, store.js, save.js, enclosure.js), правки не потребовалась
 - Блокеры: нет. Замечание на будущее: config.json дублируется вшитой копией в economy.js (обязательное ограничение file://); при правке правил игры править нужно ОБА места, и T1 в tests/config_test.html (по http://) поймёт рассинхрон — рекомендуется в следующей фазе подключить loadConfig в main.js и сделать fetch каноническим при http://
+
+## [Фаза 3] 2026-11-26 15:52 — Коммит и push по запросу пользователя
+- git add: 5 изменённых + 2 новых (js/core/economy.js, js/state/store.js, js/state/save.js, js/ui/screens/enclosure.js, js/main.js, js/data/config.json, tests/config_test.html, LOG.md)
+- Коммит 3e2c6ca «Фаза 3: состояние, сохранение и импорт/экспорт сейвов (проверки PASS 4/4)», push: ebe8699..3e2c6ca main -> main (github.com/DiKar7612/genolab)
+- git status: nothing to commit, working tree clean
+- Что НЕ сделано / НЕ проверено: код не менялся — только VCS-операции
+- Файлы вне задания: не трогал
+
+## [Фаза 3] 2026-11-26 15:54 — Контракт правки правил игры в шапке economy.js (замечание пользователя) + коммит
+- js/core/economy.js — в шапку добавлен «Контракт правки правил игры (обязателен): правила правятся в ДВУХ местах — js/data/config.json И вшитая CONFIG ниже; рассинхрон ловит T1 tests/config_test.html (запускать по http://: fetch локального JSON по file:// заблокирован)»; над вшитой CONFIG — короткая отсылка к контракту. Код не менялся (только комментарии), node --check OK
+- Коммит 49cf8a3 «docs: контракт правки правил игры (config.json + вшитая CONFIG) в шапке economy.js» (1 файл, +8/−1), push: 3e2c6ca..49cf8a3, git status: clean
+- Что НЕ сделано / НЕ проверено: повторного прогона тестов не было (комментарии, поведение не меняется)
+- Файлы вне задания: не трогал
+
+## [Фаза 4а] 2026-11-26 15:56 — Сводка API docs/api.md (промпт Prompts/phase4a_api.md)
+- Что сделано:
+  - Прочитаны полностью все 8 модулей: js/core/genome.js, js/core/breeder.js, js/core/rng.js, js/core/economy.js, js/state/store.js, js/state/save.js, js/render/creature.js, js/render/pennett.js
+  - docs/api.md — новый: точные сигнатуры (имена, параметры, возвращаемые значения) и однострочные описания ВСЕХ 49 экспортов 8 модулей на namespace window.GenoLab.*; схема состояния genolab_save_v1; структура Cell решётки и формат ключей byGenotype/byPhenotype (через "|"); методы объекта createRng; список модулей описателя рендера; опции renderGrid (traitIds/sizePx/pickedIndex, умолчания 96/72 px)
+- Запуск и проверка:
+  - Программная сверка (временный node-скрипт _api_check.js, удалён после проверки): разбор блока экспорта каждого из 8 файлов (маркер «===== Экспорты») → 49 экспортов; каждый найдён в docs/api.md; обратная проверка: все 49 записей таблиц api.md соответствуют реальному коду — «CHECK PASS: все экспорты — в api.md, все записи api.md — в коде»
+  - node --check на 8 js-файлах — без изменений, синтаксис OK (проверялся только чтение, код не правился)
+  - Скриншот: C:\Users\Airgu.ZALMAN8\AppData\Local\Temp\genolab_phase4a_api_md.png (chrome-devtools MCP, новая вкладка 7: file:///F:/genolab/docs/api.md). Осмотрено VL-моделью (MCP vision): заголовок «# ГеноЛаб — сводка API (docs/api.md)», блок схемы состояния, таблицы rng.js / genome.js / breeder.js / economy.js — документ открыт и читается
+- Что НЕ сделано / НЕ проверено:
+  - Сигнатуры не проверялись живыми вызовами API (только текстовая сверка с исходниками — по ограничению фазы код не изменялся и не запускался специально)
+  - Markdown-отрисовка api.md не проверялась (Chrome открывает .md как сырой текст; скриншот сделан как есть)
+  - Коммит не делался — в промпте не требуется
+- Файлы вне задания: все js-файлы (только чтение), css/*, index.html, assets/*, species.json, config.json — не трогал; временный _api_check.js — удалён
+- Блокеры: нет
