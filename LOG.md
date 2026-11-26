@@ -119,3 +119,86 @@
 - Что НЕ сделано / НЕ проверено: нет
 - Файлы вне задания: .gitconfig (глобальный) — по прямому запросу «Проверить и поправить»; README.md получен с remote rebase'ом, не создавал
 - Блокеры: нет
+
+## [Фаза 2] 2026-11-26 00:57 — Рендер существ и решётка Пеннета (промпт phase2_render.md)
+- Что сделано:
+  - assets/parts/ — канонические плоские SVG-модули существа (нарисованы с нуля): body.svg (лапки + корпус + животик + глаза + рот), ears-sharp.svg, ears-round.svg, tail.svg, pattern-stripes.svg (3 полосы, обрезаны по корпусу clipPath) + README.md (порядок наложения, решение про вшитую копию). ViewBox всех модулей — 0 0 100 100
+  - js/render/creature.js — переписан: процедурная сборка SVG из фенотипа (хвост → уши → корпус → узор → животик/морда в одной группе), окрас — палитры (коричневый #8a5a33 / белый #f0e9db с контурами), узор — заливкой полос, размер — масштаб группы (крупный 1.0 / мелкий 0.66), сторона 64..320px с clamp. По file:// внешние SVG не читаются (CORS) — в файл вшита копия разметки из assets/parts (то же решение, что вшитый species.json, фаза 0). Экспорты: window.GenoLab.render.creature — renderCreature(phenotype, sizePx), describePhenotypeRender(phenotype) {phenotype, modules[], colors{body,belly,outline,pattern,tail}, scale}, LIMITS
+  - js/render/pennett.js — переписан: интерактивная решётка 2×2 (1 признак) / 4×4 (2 признака) поверх чистой функции breeder.pennettGrid (фаза 1, не тронута). Каждая ячейка — мини-рендер существа (признаки решётки по генотипу ячейки, остальные — по родителю A), доля генотипа и проценты; подсветка случайно выпавшей клетки + перенос подсветки кликом, подпись выбранной клетки, легенда долей по фенотипам. Экспорт: renderGrid(parentA, parentB, {traitIds, sizePx, pickedIndex}) → {html, bind}
+  - js/ui/screens/creature.js — карточка существа: крупный рендер 240px (демо-экземпляр AaBbCcDd), кнопка «Секвенировать» (заглушка, по клику — сообщение «фаза 3»), блок-заглушка «Родословная» (дерево — фаза 4)
+  - js/ui/screens/enclosure.js — в вольер добавлены кнопки «Карточка существа» (#/creature) и «Решётка Пеннета» (#/breed) — критерий готовности фазы 2
+  - js/ui/screens/breed.js — два демо-родителя с рендером, кнопки «Решётка 2×2 (окрас)» / «Решётка 4×4 (окрас × узор)» / «Переснять клетку» (случайная подсветка), решётка рендерится ниже
+  - css/components.css — стили: .creature__pedigree, .pennett__* (сетка, ячейки, подсветка is-picked, легенда); только CSS-переменные, без жёстких hex (совместимо с параллельной фазой 0.5, см. ниже)
+  - tests/render_grid.html — стенд: сетка ВСЕХ 16 комбинаций фенотипов (4 колонки: окрас×узор, 4 ряда: размер×уши, подписи комбинаций + генотипы), ряд 64px (4 угловые комбинации), диапазон 64–320px, таблица describePhenotypeRender по всем 16, DOM-проверяемые тесты T1–T7 с выводом в #results и вердиктом
+  - genome.js и breeder.js не менял (ограничение промпта)
+- Запуск и проверка (реальный Chrome 137, headless; chrome-devtools MCP не использовался: codemode в этой установке падает на missing chunk-файл — то же, что в записи фазы 1; управление браузером — скриптом CDP через DevTools-протокол + --dump-dom):
+  - node --check по 5 изменённым js-файлам: синтаксис OK
+  - file:///F:/genolab/tests/render_grid.html, 1280px — из DOM: «ОБЩИЙ ВЕРДИКТ: PASS (9/9)»: T1 16 уникальных SVG; T2 16 уникальных describePhenotypeRender; T3 модули/заливка/масштаб описателя совпадают с фенотипом (0 несовпадений из 16); T4a viewBox+role у всех 16; T4b clamp 10→64 / 1000→320 / умолчание 160; T4c scale(0.66)/scale(1); T5 describe(null) — доминантные; T6 getBBox: все части 26 SVG внутри viewBox (запас 3 ед. под штрих), за границей 0; T7 горизонтального скролла нет (scrollWidth=clientWidth=1265)
+  - то же, 360px (эмуляция CDP setDeviceMetricsOverride): PASS (9/9), scrollWidth=345=clientWidth (сетка переключается на 2 колонки)
+  - file:///F:/genolab/index.html#/breed: решётка 4×4 отрендерилась — 16 клеток, 1 подсвечена (is-picked), подпись «Выпавшая клетка: Aa|BB — коричневый, полосатый (6,25%)»; 360px: 16 клеток, переполнения нет (sw=cw=345)
+  - file:///F:/genolab/index.html#/creature: SVG 240px в .creature__sprite, кнопка «Секвенировать», блок родословной — присутствуют; 360px: без переполнения
+  - file:///F:/genolab/index.html#/enclosure: ссылки «Карточка существа» и «Решётка Пеннета» в .enclosure__actions — открыты (критерий: карточка и решётка открываются из вольера)
+  - http://127.0.0.1:8126/tests/render_grid.html (python -m http.server, модульный режим, сервер остановлен): вердикт PASS (9/9)
+  - Консоль index.html по file://: только ожидаемое CORS-сообщение про js/main.js (механизм фолбэка фазы 0), новых ошибок нет
+  - Геометрический расчёт для 64px (Node): минимальные размеры элементов — крупный: глаза 8px, зазор между полосами узора 6.08px, штрих корпуса 1.6px, рот 5.12px; мелкий: глаза 3.38px, зазор 4.01px, штрих 1.06px, хвост 2.53px — ничего не слипается
+  - Скриншоты (полные страницы, CDP captureBeyondViewport): C:/Users/Airgu.ZALMAN8/AppData/Local/Temp/genolab_p2_grid_1280.png, genolab_p2_grid_360.png, genolab_p2_breed_1280.png, genolab_p2_breed_360.png, genolab_p2_creature_1280.png, genolab_p2_creature_360.png, genolab_p2_enclosure_1280.png
+- Найденные дефекты и их исправление (ход — в этой записи):
+  - проценты в решётке: 1/16 выводилось как «6,3%» (округление до 1 знака) — fracLabel() исправлен до 2 знаков, теперь «6,25%»; переснят DOM и все скриншоты, проверка пройдена
+  - остальные визуальные дефекты не выявлены (см. «что НЕ проверял» — ограничения модели)
+- Что НЕ сделано / НЕ проверено:
+  - визуальный осмотр скриншотов агентом: текущая модель не принимает изображения (read возвращает «model does not support images») — поэтому «все комбинации визуально различимы» проверено программно (16 уникальных SVG, соответствие модулей/цветов/масштаба фенотипам, getBBox, расчёт минимальных размеров на 64px), а НЕ глазами. ФИНАЛЬНАЯ ВИЗУАЛЬНАЯ ПРИЁМКА ПЕРЕДАНА ПОЛЬЗОВАТЕЛЮ — смотрите скриншоты выше (стенд 1280/360, решётка 1280/360, карточка 1280/360, вольер)
+  - интерактивный клик по клетке решётки проверен только кодом (биндинг делегирования события), не прокликан в браузере
+  - анимация скрещивания, выбор родителей из вольера — фазы 3/4
+  - Lighthouse — фаза 5
+- Файлы вне задания: genome.js и breeder.js — не трогал (запрет промпта). js/ui/screens/enclosure.js, js/ui/screens/breed.js, css/components.css — не перечислены в промпте, но изменены: критерий готовности «карточка и решётка Пеннета открываются из вольера» недостижим без них. Во время работы на диске появились чужие файлы ART_STYLE.md и Prompts/prompt_palette_patch.md (параллельная «фаза 0.5», м. 00:55) — не трогал; мои стили используют только CSS-переменные, конфликтов нет
+- Блокеры: нет. Критерий готовности: все 16 фенотипных комбинаций различимы (программно, PASS 9/9 на обоих масштабах), карточка и решётка открыты из вольера. Визуальная приёмка передана пользователю (скриншоты — выше).
+
+## [Фаза 0.5] 2026-11-26 01:25 — Переход на арт-стиль «Тёплый клин» (памятка Prompts/prompt_palette_patch.md)
+- Что сделано:
+  - css/base.css — переписан :root: палитра из ART_STYLE.md §1 (--bg #faf6f0, --surface #ffffff, --surface-warm #f4ece1, --ink #3d3229, --ink-soft #7a6a5c, --line #e5d9c9, --accent #c2542d, --accent-hover #a8431f, --gold #b8860b, --ok #4a7c59, --danger #a63d3d); производные --accent-dim, --accent-glow, --on-accent; html { font-size: 110% } (§3); системный стек шрифтов без внешних (§3); радиусы --r-s/--r-m/--r-l и тени --shadow-s/--shadow-m (§4); :focus-visible — обводка 2px --accent, offset 2px; заголовки 700. Добавлены алиасы старых имён (--color-bg и т.д. → новые токены), потому что tests/*.html вне перечня файлов задания и ссылаются на старые имена
+  - css/layout.css — все var(--color-*) заменены на новые токены; активная кнопка навигации — --accent + белый текст var(--on-accent)
+  - css/components.css — та же замена; rgba(212,175,55,.12) (подсветка решётки) → var(--accent-glow); .btn--primary — белый текст, hover на --accent-hover; .resource--coins — var(--gold), 1.1rem/700 (по §2 золото — только для чисел ≥16px или полужирных); .creature-card и .order — box-shadow var(--shadow-s)
+  - index.html — просмотрен: инлайновых цветов нет (style-атрибутов с цветами нет), не изменялся
+- Запуск и проверка:
+  - grep css/ index.html: #1a1a1a, #e8d5b0, #d3d3d3, #d4af37 — 0 совпадений (exit 1); в layout.css/components.css нет hex вообще — только переменные из :root
+  - chrome-devtools MCP недоступен (битая установка, см. фазу 2) — использован CDP-скрипт C:\Users\Airgu.ZALMAN8\AppData\Local\Temp\cdp_phase05.js (headless Chrome, Emulation.setDeviceMetricsOverride 1280/360). Скриншоты 5 экранов × 2 ширины: C:\Users\Airgu.ZALMAN8\AppData\Local\Temp\genolab_p05_{enclosure,breed,creature,orders,codex}_{1280,360}.png (10 шт.)
+  - Консоль: 0 сообщений за время жизни страниц (Runtime.consoleAPICalled/exceptionThrown). Отдельно --dump-dom --enable-logging=stderr: единственное сообщение — известный CORS file:// на js/main.js (fallback фазы 0, классические <script> работают) — новых ошибок нет
+  - Контраст, вычислен Runtime.evaluate в headless Chrome (реальные computed-стили, file:///F:/genolab/index.html):
+    - body (--ink на --bg): 11.56:1 — ожидание ≥4.5:1 ВЫПОЛНЕНО
+    - .screen__stub / .screen__hint (--ink-soft на --bg): 4.82:1
+    - .creature__sprite (карточка, --ink-soft на --surface #fff): 5.19:1
+    - .nav__link.is-active (белый на --accent): 4.57:1
+    - .screen__title (h1, --accent, крупный текст): 4.24:1 — WCAG для крупного ≥3:1
+    - .resource--coins (--gold на #fff): 3.25:1 — 1.1rem bold ≈ 19.4px (крупный текст WCAG), ≥3:1
+  - Пиксельная проверка genolab_p05_enclosure_1280.png: доминируют #faf6f0 (359184 сэмпла), #ffffff, #f4ece1, акцент #c2542d (839), линии #e5d9c9, текст #7a6a5c, золото #b8860b (81). Тёмной палитры в кадре нет
+- Что НЕ сделано / НЕ проверено:
+  - Визуальная приёмка 10 скриншотов — за пользователем (модель в сессии не отображает изображения)
+  - .order__title/.order__desc для контраста не существуют (экран «Заказы» — заглушка фазы 4); измерял на реально существующих карточных элементах
+  - Палитра существ: ART_STYLE.md §5 (тёплый ряд #c98a5b и др.) в js/render/creature.js НЕ применён (запрет: js не трогать) — см. блокеры
+  - lifeStages (ART_STYLE §6) — вне CSS, поле species.json/js
+- Файлы вне задания: js/*, assets/, tests/*, index.html — не трогал. APPEND_SYSTEM.md, упомянутый в задании, в репозитории не найден — соблюдение AGENTS.md, RULES.md, SECURITY.md, LOGGING.md зафиксировано
+- Блокеры: (1) #1a1a1a встречается в js/render/creature.js (глаза, генерируется из js) и assets/parts/body.svg — по правилу задания js не менял; требуется отдельная задача «согласовать палитру существ с ART_STYLE.md §5» (вкл. цвет глаз, тёплые окрасы, старение mixToGrey); (2) стадии baby/adult/old (§6) не реализованы — нет полей в species.json
+
+## [Фаза 0.5] 2026-11-26 14:27 — Палитра существ по ART_STYLE.md §5 и стадии жизни §6 (закрытие блокеров записи 01:25)
+- Что сделано:
+  - js/render/creature.js — палитры переведены на тёплый ряд §5: коричневый {тело #b06a3f, животик #e0b184, контур #5f3a22, узор #5f3a22, хвост #8f5a3c}, белый {тело #d9c2a3, животик #e8cfae, контур #8f5a3c, узор #7a4a2b, хвост #b06a3f}; старый тёмный #1a1a1a из всего кода убран. Цвет глаз §5 прямо не задан — предложен ближайший тёмный тёплый тон палитры #5f3a22 (константа EYE_COLOR, прокомментирована как предложенная)
+  - js/render/creature.js — добавлен mixToGrey(hex, t): линейное смешение цвета с серо-бежевым #cfc6b8 (AGE_GREY) в доле t=0..1, возвращает hex-строку
+  - js/render/creature.js — стадии жизни по §6: параметры baby/adult/old берутся из поля golo.lifeStages конфига вида (если есть), иначе DEFAULT_STAGES: baby {scale 0.72, headScale 1.25 (большая голова/морда), patternOpacity 0.45, coatMix 0.25, глаза open-big}, adult {1.0, базово}, old {scale 0.95, earTilt 28° (опущенные уши), patternOpacity 0.45, coatMix 0.65 (шерсть к серому), tailDrop 6px (хвост ниже), глаза squint}. renderCreature(phenotype, sizePx, stage) — 3-й аргумент опциональный, по умолчанию 'adult', старые вызовы (2 аргумента) не менялись
+  - js/render/creature.js — exports расширены: {renderCreature, describePhenotypeRender, mixToGrey, LIMITS, SCALES, STAGES, EYE, AGE_GREY}
+  - assets/parts/body.svg — канонический модуль перекрашен в палитру §5 (тело #b06a3f, животик #e0b184, контур/глаза/рот #5f3a22)
+  - js/data/species.json — вид golo: добавлено поле lifeStages (baby/adult/old, значения §6)
+  - js/core/genome.js — в вшитую копию SPECIES добавлено то же поле lifeStages (дублирует species.json — режим file:// не читает JSON)
+  - tests/render_grid.html — новый блок «Стадии жизни (baby / adult / old) — ART_STYLE.md §6»: три рендера ОДНОГО генотипа AABBCCDD (renderCreature(фенотип, 120, стадия)); тест T8 (3 уникальных SVG, масштабы 0.72/1/0.95, шерсть old ≠ adult); тест T9 (mixToGrey: t=0 → #b06a3f, t=1 → #cfc6b8, t=0.65 → промежуточный #c4a68e); проверка «запрет #1a1a1a в заливках» охватывает все рендеры + body.svg + все fill/stroke в creature.js; таблица описателя и легенды — новые hex
+- Запуск и проверка:
+  - node --check js/render/creature.js js/core/genome.js: синтаксис OK (оба)
+  - Node, vm-песочница (загружены genome.js + creature.js, без DOM): 9 PASS — T1 16 уникальных SVG; T2 16 уникальных describe; T3 модули/заливка/масштаб совпадают (0 несовпадений из 16); T4b clamp 64/320/160; T4c scale 0.66/1; T5 default; T8 три стадии — три разных рендера (0.72/1/0.95); T9 mixToGrey (t=0: #b06a3f, t=0.65: #c4a68e, t=1: #cfc6b8); запрет #1a1a1a в заливках — PASS
+  - Реальный браузер через chrome-devtools MCP (new_page → file:///F:/genolab/tests/render_grid.html, 1841px): «ОБЩИЙ ВЕРДИКТ: PASS (11/11)» — T1 16 уникальных SVG; T2 16 уникальных describe; T3 0 несовпадений из 16; T4a viewBox+role="img" у всех; T4b clamp 10→64 / 1000→320 / умолчание 160; T4c мелкий scale(0.66) / крупный scale(1); T5 describe(null) — доминантные; T6 getBBox: 29 SVG, за границей viewBox — 0; T7 горизонтального скролла нет (scrollWidth=clientWidth=1826); T8 lifeStages: 3 уникальных рендера, масштабы 0.72/1/0.95; T9 mixToGrey: #b06a3f / #c4a68e / #cfc6b8
+  - grep -rn "1a1a1a" js/ assets/ tests/ index.html: единственное совпадение — комментарий-документация в шапке creature.js («тёмный #1a1a1a отменён»); в fill/stroke и в SVG-файлах — 0
+  - lifeStages в species.json и вшитой копии genome.js — идентичны (сравнено скриптом)
+  - Скриншоты: C:\Users\Airgu.ZALMAN8\AppData\Local\Temp\genolab_grid_full.png (вся страница стенда), genolab_stages.png (секция стадий). Осмотрено VL-моделью Gemma4-26B-A4B (MCP vision-сервер, VISION_MODEL из mcp.json): 16 комбинаций в тёплой палитре (коричневые/бежевые, без чёрных глаз), секция стадий — три существа (baby/adult/old) одного генотипа, таблица описателя — #b06a3f / #d9c2a3, все 11 проверок PASS на экране
+- Что НЕ сделано / НЕ проверено:
+  - Точный цвет глаз — предложен (#5f3a22, ближайший тёмный тёплый тон §5); §5 его прямо не фиксирует — на утверждение пользователю
+  - Точные числовые параметры стадий (коэффициенты mixToGrey, earTilt 28°, tailDrop 6px) — значения по умолчанию, выдержанные в пределах духа §6; при желании — правка одного поля golo.lifeStages в species.json (рендер подхватит без изменения кода)
+  - Экраны приложения (index.html#/creature, #/breed) не переснимали после смены палитры — рендер-функция та же, вызовы с 2 аргументами работают без изменений (проверено тестами default-стадии)
+- Файлы вне задания: js/render/pennett.js, js/ui/screens/*, css/* — не трогал (вызовы renderCreature(фенотип, px) совместимы). tests/render_grid.html изменён: в нём живут тесты T8/T9 и запретная проверка палитры — без правки тестов закрытие блокеров недоказуемо
+- Блокеры: нет. Оба блокера записи фазы 0.5 (01:25) закрыты: (1) #1a1a1a и холодные тона в существах — убраны, палитра §5 применена; (2) стадии §6 — реализованы, тест T8 PASS

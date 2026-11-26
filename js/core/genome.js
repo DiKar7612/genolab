@@ -32,7 +32,16 @@
             dominant: 'C', recessive: 'c', values: { C: 'крупный', c: 'мелкий' } },
           { id: 'ears',    name: 'Форма ушей',  model: 'complete-dominance',
             dominant: 'D', recessive: 'd', values: { D: 'острые', d: 'круглые' } }
-        ]
+        ],
+        /* Стадии жизни (ART_STYLE.md §6); идентично lifeStages в species.json. */
+        lifeStages: {
+          baby:  { scale: 0.72, headScale: 1.25, earTilt: 0,  patternOpacity: 0.45,
+                   coatMix: 0.25, tailDrop: 0, eyeState: 'open-big' },
+          adult: { scale: 1.0,  headScale: 1.0,  earTilt: 0,  patternOpacity: 1.0,
+                   coatMix: 0.0,  tailDrop: 0, eyeState: 'open' },
+          old:   { scale: 0.95, headScale: 1.0,  earTilt: 28, patternOpacity: 0.45,
+                   coatMix: 0.65, tailDrop: 6, eyeState: 'squint' }
+        }
       }
     ]
   };

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ГеноЛаб — фаза 2: стенд рендера (все комбинации фенотипов)</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <style>
+    /* Стили стенда — только для этой тестовой страницы. */
+    body { padding: 0; }
+    .stand {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      padding: 16px 12px 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .stand h1 { color: var(--color-gold); }
+    .stand h2 { color: var(--color-gold); font-size: 1.05rem; margin: 0 0 10px; }
+    .hint { color: var(--color-gray); font-size: var(--font-size-sm); margin: 0; }
+
+    /* Сетка ВСЕХ комбинаций: 4 колонки (цвет × узор), 4 ряда (размер × уши).
+       Ниже 640px — 2 колонки, чтобы не вылетать за 360px. */
+    .combos {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 639px) {
+      .combos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .combo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 8px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      min-width: 0;
+    }
+    .combo svg { max-width: 100%; height: auto; }
+    .combo__label {
+      font-size: 12px;
+      color: var(--color-beige);
+      text-align: center;
+      line-height: 1.3;
+    }
+    .combo__geno { font-size: 11px; color: var(--color-beige-dim); }
+
+    .row-flex {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .row-flex figure {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin: 0;
+    }
+    .row-flex figcaption {
+      font-size: 11px;
+      color: var(--color-gray);
+      text-align: center;
+    }
+
+    .desc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .desc-table th, .desc-table td {
+      padding: 6px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: top;
+    }
+    .desc-table th { color: var(--color-gold); }
+
+    #results {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      color: var(--color-beige);
+    }
+    #verdict { font-size: 1.1rem; font-weight: 700; }
+    .pass { color: #8fd18f; }
+    .fail { color: #e8836a; }
+  </style>
+</head>
+<body>
+  <div class="stand">
+    <header>
+      <h1>Фаза 2 — стенд рендера</h1>
+      <p class="hint">Все комбинации фенотипов вида «Голо»: 4 признака × 2 значения = 16.
+      Колонки — окрас × узор, ряды — размер × уши. Рендер: js/render/creature.js.</p>
+    </header>
+
+    <section aria-label="Все комбинации">
+      <h2>Все комбинации фенотипов (16)</h2>
+      <div class="combos" id="combos"></div>
+    </section>
+
+    <section aria-label="Масштаб 64 px">
+      <h2>Масштаб 64 px (элементы не должны слипаться)</h2>
+      <div class="row-flex" id="row64"></div>
+    </section>
+
+    <section aria-label="Диапазон размеров">
+      <h2>Диапазон размеров 64–320 px (без потери качества)</h2>
+      <p class="hint">Один и тот же фенотип: белый, однотонный, мелкий, круглые уши.</p>
+      <div class="row-flex" id="sizes"></div>
+    </section>
+
+    <section aria-label="Стадии жизни">
+      <h2>Стадии жизни (baby / adult / old) — ART_STYLE.md §6</h2>
+      <p class="hint">Один и тот же генотип (коричневый, полосатый, крупный, острые уши).
+      renderCreature(фенотип, 120, стадия).</p>
+      <div class="row-flex" id="stages"></div>
+    </section>
+
+    <section aria-label="Описатель рендера">
+      <h2>describePhenotypeRender (для DOM-проверяемых тестов)</h2>
+      <table class="desc-table">
+        <thead>
+          <tr><th>Комбинация</th><th>Модули</th><th>Заливка тела</th><th>Масштаб</th></tr>
+        </thead>
+        <tbody id="desc-body"></tbody>
+      </table>
+    </section>
+
+    <section aria-label="Проверки">
+      <h2>Проверки</h2>
+      <div id="results"></div>
+      <div id="verdict"></div>
+    </section>
+  </div>
+
+  <!-- Классические скрипты: стенд открывается с file:// (ESM блокируется CORS). -->
+  <script src="../js/core/genome.js"></script>
+  <script src="../js/render/creature.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      var G = window.GenoLab;
+      var genome = G.core.genome;
+      var creature = G.render.creature;
+
+      var sp = genome.getSpecies('golo');
+      /* Доминантный аллель по признаку: гомозиготная пара [dom, dom],
+       * рецессивный: [rec, rec] — фенотип однозначен. */
+      function pairsFor(phen) {
+        return sp.traits.map(function (t) {
+          var dom = phen[t.id] === t.values[t.dominant];
+          return dom ? [t.dominant, t.dominant] : [t.recessive, t.recessive];
+        });
+      }
+      function make(phen) {
+        var gm = genome.createGenome('golo', pairsFor(phen));
+        return { phen: genome.genomeToPhenotype(gm), geno: genome.genotypeString(gm) };
+      }
+
+      /* ---- Сетка 16 комбинаций ----
+         Колонки (4): цвет × узор. Ряды (4): размер × уши. */
+      var comboList = [];
+      for (var r = 0; r < 4; r++) {
+        for (var c = 0; c < 4; c++) {
+          comboList.push({
+            color: c < 2 ? 'коричневый' : 'белый',
+            pattern: c % 2 === 0 ? 'полосатый' : 'однотонный',
+            size: r < 2 ? 'крупный' : 'мелкий',
+            ears: r % 2 === 0 ? 'острые' : 'круглые'
+          });
+        }
+      }
+
+      var combosEl = document.getElementById('combos');
+      var descBody = document.getElementById('desc-body');
+      var svgs = [];
+      var describes = [];
+      var frag = document.createDocumentFragment();
+      var descFrag = document.createDocumentFragment();
+
+      comboList.forEach(function (combo) {
+        var made = make(combo);
+        var svgStr = creature.renderCreature(made.phen, 120);
+        var desc = creature.describePhenotypeRender(made.phen);
+        svgs.push(svgStr);
+        describes.push(JSON.stringify(desc));
+
+        var card = document.createElement('div');
+        card.className = 'combo';
+        card.innerHTML = svgStr; /* константы render.creature — SECURITY.md §4 */
+        var label = document.createElement('div');
+        label.className = 'combo__label';
+        label.textContent = made.phen.color + ', ' + made.phen.pattern +
+          ' · ' + made.phen.size + ', ' + made.phen.ears + ' уши';
+        var geno = document.createElement('div');
+        geno.className = 'combo__geno';
+        geno.textContent = made.geno;
+        card.appendChild(label);
+        card.appendChild(geno);
+        frag.appendChild(card);
+
+        var tr = document.createElement('tr');
+        [['Комбинация', label.textContent],
+         ['Модули', desc.modules.join(' → ')],
+         ['Заливка тела', desc.colors.body],
+         ['Масштаб', String(desc.scale)]
+        ].forEach(function (kv, i) {
+          var cell = document.createElement(i === 0 ? 'th' : 'td');
+          cell.scope = 'row';
+          cell.textContent = kv[1];
+          tr.appendChild(cell);
+        });
+        descFrag.appendChild(tr);
+      });
+      combosEl.appendChild(frag);
+      descBody.appendChild(descFrag);
+
+      /* ---- Ряд 64 px: четыре «угловых» комбинации ---- */
+      var extremes = [
+        { color: 'коричневый', pattern: 'полосатый', size: 'крупный', ears: 'острые' },
+        { color: 'коричневый', pattern: 'однотонный', size: 'мелкий', ears: 'круглые' },
+        { color: 'белый', pattern: 'полосатый', size: 'мелкий', ears: 'острые' },
+        { color: 'белый', pattern: 'однотонный', size: 'крупный', ears: 'круглые' }
+      ];
+      var row64 = document.getElementById('row64');
+      var f64 = document.createDocumentFragment();
+      extremes.forEach(function (combo) {
+        var made = make(combo);
+        var fig = document.createElement('figure');
+        fig.innerHTML = creature.renderCreature(made.phen, 64);
+        var cap = document.createElement('figcaption');
+        cap.textContent = '64 px · ' + made.geno;
+        fig.appendChild(cap);
+        f64.appendChild(fig);
+      });
+      row64.appendChild(f64);
+
+      /* ---- Диапазон размеров ---- */
+      var smallPhen = make({ color: 'белый', pattern: 'однотонный', size: 'мелкий', ears: 'круглые' });
+      var sizesEl = document.getElementById('sizes');
+      var fSizes = document.createDocumentFragment();
+      [64, 96, 144, 192, 264, 320].forEach(function (px) {
+        var fig = document.createElement('figure');
+        fig.innerHTML = creature.renderCreature(smallPhen.phen, px);
+        var cap = document.createElement('figcaption');
+        cap.textContent = px + ' px';
+        fig.appendChild(cap);
+        fSizes.appendChild(fig);
+      });
+      sizesEl.appendChild(fSizes);
+
+      /* ---- Стадии жизни: один генотип, три стадии (ART_STYLE.md §6) ---- */
+      var stageCombo = comboList[0];
+      var stageMade = make(stageCombo);
+      var stagesEl = document.getElementById('stages');
+      var fStages = document.createDocumentFragment();
+      ['baby', 'adult', 'old'].forEach(function (stName) {
+        var fig = document.createElement('figure');
+        fig.innerHTML = creature.renderCreature(stageMade.phen, 120, stName);
+        var cap = document.createElement('figcaption');
+        cap.textContent = stName + ' · ' + stageMade.geno;
+        fig.appendChild(cap);
+        fStages.appendChild(fig);
+      });
+      stagesEl.appendChild(fStages);
+
+      /* ---- Проверки (DOM-проверяемые, вывод в #results) ---- */
+      var lines = [];
+      var fails = 0;
+      function check(name, ok, detail) {
+        lines.push((ok ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? ' (' + detail + ')' : ''));
+        if (!ok) fails += 1;
+      }
+
+      /* T1. 16 уникальных SVG. */
+      check('T1. 16 уникальных SVG-рендеров',
+        new Set(svgs).size === 16, 'уникальных: ' + new Set(svgs).size);
+
+      /* T2. 16 уникальных описателей. */
+      check('T2. 16 уникальных describePhenotypeRender',
+        new Set(describes).size === 16, 'уникальных: ' + new Set(describes).size);
+
+      /* T3. Модули/цвета/масштаб описателя совпадают с фенотипом. */
+      var t3bad = 0;
+      comboList.forEach(function (combo) {
+        var desc = creature.describePhenotypeRender(combo);
+        var m = desc.modules.join(',');
+        var okM = (combo.ears === 'острые') ? m.indexOf('ears-sharp') >= 0 : m.indexOf('ears-round') >= 0;
+        var okP = (combo.pattern === 'полосатый') ? m.indexOf('pattern-stripes') >= 0
+          : m.indexOf('pattern-stripes') < 0;
+        var okBody = desc.colors.body === (combo.color === 'коричневый' ? '#b06a3f' : '#d9c2a3');
+        var okScale = desc.scale === (combo.size === 'крупный' ? 1.0 : 0.66);
+        var okCore = m.indexOf('tail') >= 0 && m.indexOf('body-base') >= 0 && m.indexOf('body-face') >= 0;
+        if (!(okM && okP && okBody && okScale && okCore)) t3bad += 1;
+      });
+      check('T3. модули/заливка/масштаб описателя совпадают с фенотипом',
+        t3bad === 0, 'несовпадений: ' + t3bad + ' из 16');
+
+      /* T4. SVG: viewBox, role, ограничения 64..320, clamp. */
+      var ph = comboList[0];
+      var sSmall = creature.renderCreature(ph, 10);
+      var sHuge = creature.renderCreature(ph, 1000);
+      var sDef = creature.renderCreature(ph);
+      var okViewBox = svgs.every(function (s) {
+        return s.indexOf('viewBox="0 0 100 100"') >= 0 && s.indexOf('role="img"') >= 0;
+      });
+      check('T4a. viewBox и role="img" у всех 16', okViewBox);
+      check('T4b. clamp: 10px→64, 1000px→320, умолчание→160',
+        sSmall.indexOf('width="64"') >= 0 && sHuge.indexOf('width="320"') >= 0 &&
+        sDef.indexOf('width="160"') >= 0);
+      check('T4c. мелкий — scale(0.66), крупный — scale(1)',
+        creature.renderCreature({ size: 'мелкий' }).indexOf('scale(0.66)') >= 0 &&
+        creature.renderCreature({ size: 'крупный' }).indexOf('scale(1)') >= 0);
+
+      /* T5. Описатель по умолчанию (без аргумента) — доминантный фенотип. */
+      var dDef = creature.describePhenotypeRender(null);
+      check('T5. describePhenotypeRender(null) — доминантные значения',
+        dDef.phenotype.color === 'коричневый' && dDef.phenotype.pattern === 'полосатый' &&
+        dDef.phenotype.size === 'крупный' && dDef.phenotype.ears === 'острые' &&
+        Array.isArray(dDef.modules) && typeof dDef.colors.body === 'string');
+
+      /* T6. Все элементы рендеров — внутри viewBox 0..100 (getBBox по DOM).
+         Считаем с запасом на толщину штриха (макс. 2.5 + пол-единицы). */
+      var overflowBad = 0;
+      var EPS = 3.0;
+      document.querySelectorAll('#combos svg, #row64 svg, #sizes svg, #stages svg').forEach(function (svg) {
+        var group = svg.querySelector('g');
+        if (!group || typeof group.getBBox !== 'function') { overflowBad += 1; return; }
+        var b = group.getBBox();
+        if (b.x < -EPS || b.y < -EPS || b.x + b.width > 100 + EPS || b.y + b.height > 100 + EPS) {
+          overflowBad += 1;
+        }
+      });
+      var svgCount = document.querySelectorAll('#combos svg, #row64 svg, #sizes svg, #stages svg').length;
+      check('T6. части не вылетают за viewBox (getBBox, запас 3 ед. под штрих)',
+        overflowBad === 0, 'SVG: ' + svgCount + ', за границей: ' + overflowBad);
+
+      /* T7. Горизонтального переполнения нет на текущей ширине окна. */
+      var doc = document.documentElement;
+      check('T7. нет горизонтального скролла (width=' + window.innerWidth + 'px)',
+        doc.scrollWidth <= doc.clientWidth + 1,
+        'scrollWidth=' + doc.scrollWidth + ', clientWidth=' + doc.clientWidth);
+
+      /* T8. lifeStages: три стадии — три разных рендера одного генотипа. */
+      var stageRenders = ['baby', 'adult', 'old'].map(function (stName) {
+        return creature.renderCreature(stageMade.phen, 120, stName);
+      });
+      var stageDescs = ['baby', 'adult', 'old'].map(function (stName) {
+        return creature.describePhenotypeRender(stageMade.phen, stName);
+      });
+      var okT8 = new Set(stageRenders).size === 3 &&
+        stageDescs[0].scale === 0.72 && stageDescs[1].scale === 1.0 && stageDescs[2].scale === 0.95 &&
+        stageDescs[0].stage === 'baby' && stageDescs[2].stage === 'old' &&
+        stageDescs[2].eyeState === 'squint' && stageDescs[0].eyeState === 'open-big' &&
+        stageDescs[2].colors.body !== stageDescs[1].colors.body; /* coatMix к #cfc6b8 */
+      check('T8. lifeStages: три стадии — три разных рендера одного генотипа',
+        okT8, 'уникальных рендеров: ' + new Set(stageRenders).size +
+        ', масштабы: ' + stageDescs.map(function (d) { return d.scale; }).join('/'));
+
+      /* T9. mixToGrey: t=0 — исходный цвет, t=1 — #cfc6b8, t=0.65 — промежуточный. */
+      var m0 = creature.mixToGrey('#b06a3f', 0);
+      var m1 = creature.mixToGrey('#b06a3f', 1);
+      var mMid = creature.mixToGrey('#b06a3f', 0.65);
+      check('T9. mixToGrey: t=0 — исходный цвет, t=1 — #cfc6b8, t=0.65 — промежуточный',
+        m0 === '#b06a3f' && m1 === '#cfc6b8' &&
+        /^#[0-9a-f]{6}$/i.test(mMid) && mMid !== m0 && mMid !== m1,
+        't=0: ' + m0 + ', t=0.65: ' + mMid + ', t=1: ' + m1);
+
+      /* ---- Вывод ---- */
+      document.getElementById('results').textContent = lines.join('\n');
+      var verdict = document.getElementById('verdict');
+      if (fails === 0) {
+        verdict.textContent = 'ОБЩИЙ ВЕРДИКТ: PASS (' + lines.length + '/' + lines.length + ')';
+        verdict.className = 'pass';
+      } else {
+        verdict.textContent = 'ОБЩИЙ ВЕРДИКТ: FAIL (' + fails + ' падений из ' + lines.length + ')';
+        verdict.className = 'fail';
+      }
+    })();
+  </script>
+</body>
+</html>
