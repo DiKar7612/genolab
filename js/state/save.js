@@ -123,6 +123,11 @@
         e.message + '). Игровая сессия начата с чистого состояния.';
       return null;
     }
+    /* Обратная совместимость: сейвы фазы 3 не имеют поля quests —
+     * отсутствующее поле трактуем как дефолт (версия схемы не меняется). */
+    if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('quests' in obj)) {
+      obj.quests = {};
+    }
     var v = validate(obj);
     if (!v.ok) {
       lastError = 'Сейв повреждён: не подходит по схеме genolab_save_v1 — ' +

@@ -325,3 +325,26 @@
   - js/quests/tutorial.js — заглушка (исторические квесты — фаза 5)
 - Файлы вне задания: js/core/{rng,genome,breeder,economy}.js, js/state/save.js, js/render/*, js/ui/screens/enclosure.js, js/ui/router.js, css/*, tests/{genome,breeder}.test.html, tests/config_test.html, js/data/species.json — не трогал
 - Блокеры: нет. Найден и исправлен системный баг: по http:// (модульный режим) ядро не подгружалось вообще — main.js подгружал только router и экраны; добавлен ordered-import 10 модулей ядра (guarded !window.__genolabClassic)
+
+## [Фазы 4b/4c] 2026-11-26 17:10 — Доводки после приёмки: file:// смоук + обратная совместимость с сейвом фазы 3
+- Что сделано:
+  - js/state/save.js (load()): мягкая деградация — сейв без поля `quests` (образец фазы 3) до валидации дополняется `quests = {}`; версия схемы не меняется (`genolab_save_v1`, version: 1)
+  - docs/api.md: в описании `load` добавлено замечание про обратную совместимость (только по факту изменения кода)
+  - Больше ничего не менял
+- Запуск и проверка (chrome-devtools MCP, file:///F:/genolab/index.html — классический режим):
+  - Смоук на чистом localStorage (removeItem → reload):
+    - Старт: вольер c1–c3 (3 стартовых), 0 мон./0 реп., quests {} — PASS
+    - breed: «Случайно» ×2 + «Скрестить» ×2 → 4 потомка (c4–c7, 7/12), msg «Готово: 2 потомков в вольере», q1 «Доминантный окрас» выполнен (2/2), 40 мон./1 реп. — PASS
+    - orders: панель 5 квестов, 5 карточек заказов, у всех 5 «Выполнить» активна — PASS
+    - creature: «Секвенировать» c1 → 40→50 мон. (стоимость 30, награда квеста +40), q2 «Скрытый аллель» выполнен, msg «Генотип #c1: AaBbCcDd…», блок генотипа виден — PASS
+    - reload → 7/12, 50 мон./2 реп., q1+q2 completed — сейв персистентен — PASS
+    - Консоль: только известные сообщения — CORS-блок module-скрипта main.js + ERR_FAILED (триггер фолбэка на классические скрипты), CORS-блок fetch quests.json + warn «вшитые данные квестов: не удалось загрузить». JS-ошибок нет — PASS
+  - Обратная совместимость (в localStorage вручную положен сейв образца фазы 3: version 1, enclosure c1/c2, resources 75/2, slotLimit 12, БЕЗ поля quests):
+    - reload → приложение стартует без краша: вольер c1/c2, 75 мон./2 реп., quests = {} (дефолт), активный квест q1 (0/2), errorMessage() = null — PASS
+  - Контроль деградации (задемпфированные пути):
+    - '{corrupted json' → чистое состояние (3 стартовых) + msg «Сейв повреждён: … не является валидным JSON» — PASS
+    - невалидная схема (slotLimit: 99) → чистое состояние + msg «не подходит по схеме … slotLimit: ожидается целое 1..24» — PASS
+  - node --check js/state/save.js — OK
+  - Регрессия по http://127.0.0.1:8137/tests/: genome «PASS (9 PASS)», breeder «PASS (9/9)», render_grid «PASS (11/11)», config_test «PASS (5/5)», quests_test «PASS (7 PASS)» — PASS
+- Что НЕ сделано / НЕ проверено: ничего сверх задания; импорт файла-объекта старой схемы (importFile) через UI не прогонялся — код идёт через ту же validate, а путь load() проверен
+- Файлы вне задания: всё, кроме js/state/save.js, docs/api.md, LOG.md — не трогал

@@ -121,7 +121,7 @@ eval (SECURITY.md §6).
 | `DEBOUNCE_MS` | `500` | Задержка автосохранения, мс (константа) |
 | `validate` | `validate(obj: object) => {ok: boolean, errors: string[]}` | Валидация объекта сейва по схеме `genolab_save_v1` (version, enclosure — валидные геномы со строковым id, resources — числа >=0, quests — объект, slotLimit целое 1..slots.max) |
 | `save` | `save() => boolean` | Записать текущее состояние в localStorage; false при ошибке записи |
-| `load` | `load() => object \| null` | Прочитать и применить сейв из localStorage (applyState); повреждённый JSON/схема — null + причина в `errorMessage()`, состояние остаётся чистым |
+| `load` | `load() => object \| null` | Прочитать и применить сейв из localStorage (applyState); повреждённый JSON/схема — null + причина в `errorMessage()`, состояние остаётся чистым; сейвы фазы 3 без поля `quests` принимаются (отсутствующее поле = `{}`) |
 | `init` | `init() => void` | load() + подписка на store: автосохранение с debounce 500 мс на каждое изменение |
 | `errorMessage` | `errorMessage() => string \| null` | Последняя ошибка сейва (человекочитаемая) или null |
 | `exportFile` | `exportFile() => {ok: boolean, filename?: string, bytes?: number, reason?: string}` | Экспорт текущего состояния в JSON-файл (скачивание, 2-пробельный отступ) |
