@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ГеноЛаб — генетический симулятор: скрещивание существ, заказы, квесты и предсказание расщепления. Мини-тренажёр по генетике.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23c56a3d'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='%23fdf6ee' font-family='Georgia,serif' font-weight='bold'%3EГ%3C/text%3E%3C/svg%3E">
   <title>ГеноЛаб — конструктор скрещивания существ</title>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/layout.css">
@@ -32,6 +34,7 @@
       'js/quests/tutorial.js',
       'js/ui/router.js',
       'js/ui/toast.js',
+      'js/ui/sfx.js',
       'js/ui/screens/enclosure.js',
       'js/ui/screens/breed.js',
       'js/ui/screens/creature.js',
@@ -71,6 +74,8 @@
     <div class="topbar__resources" aria-label="Ресурсы">
       <span class="resource resource--coins">Монеты: 0</span>
       <span class="resource resource--rep">Репутация: 0</span>
+      <button id="sfx-toggle" class="topbar__sfx" type="button" aria-pressed="false"
+              aria-label="Звук: включён">🔊</button>
     </div>
   </header>
 

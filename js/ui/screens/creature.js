@@ -111,7 +111,7 @@
       '<style>' +
       '.creature__select{margin:12px 0;}' +
       '.creature__select select{padding:6px 10px;background:var(--surface);color:var(--ink);' +
-      'border:1px solid var(--line);border-radius:var(--radius);min-width:280px;}' +
+      'border:1px solid var(--line);border-radius:var(--radius);min-width:280px;max-width:100%;}' +
       '.creature__empty{color:var(--ink-soft);}' +
       '.creature__genotype{border-collapse:collapse;margin:8px 0;font-size:var(--font-size-sm);}' +
       '.creature__genotype td{border:1px solid var(--line);padding:4px 12px;}' +

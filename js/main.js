@@ -69,11 +69,14 @@
   }
 
   // Фаза 5: тосты — UI-утилита, экраны используют g.ui.toast.show().
+  // Фаза 6: звук — WebAudio-синтез (ui/sfx.js), mute в шапке.
   if (!window.__genolabClassic) {
-    try {
-      await import('./ui/toast.js');
-    } catch (err) {
-      console.warn('[ГеноЛаб] не удалось загрузить ui/toast.js:', err);
+    for (const m of ['./ui/toast.js', './ui/sfx.js']) {
+      try {
+        await import(m);
+      } catch (err) {
+        console.warn('[ГеноЛаб] не удалось загрузить ' + m + ':', err);
+      }
     }
   }
 
@@ -106,6 +109,21 @@
     g.state.save.init();
     /* Экран мог отрендериться до загрузки сейва — перерисовываем. */
     if (typeof router.resolve === 'function') router.resolve();
+  }
+
+  /* Фаза 6: звук — инициализация ПОСЛЕ save.init(): иконка тумблера
+   * должна сразу отражать mute из загруженного сейва. */
+  if (g.ui && g.ui.sfx && typeof g.ui.sfx.init === 'function') {
+    g.ui.sfx.init();
+  }
+
+  /* Фаза 6: конфиг — из файла (http://); по file:// fetch блокируется
+   * CORS, остаётся вшитая CONFIG в economy.js (паттерн loadQuests 4c). */
+  if (!window.__genolabClassic && g.core && g.core.economy &&
+      typeof g.core.economy.loadConfig === 'function') {
+    g.core.economy.loadConfig('js/data/config.json').then(function (r) {
+      if (!r.ok) console.warn('[ГеноЛаб] вшитый конфиг: ' + r.reason);
+    });
   }
 
   /* Фаза 4c: данные квестов — из файла (http://); по file:// fetch

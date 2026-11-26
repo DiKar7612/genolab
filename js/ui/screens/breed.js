@@ -404,6 +404,10 @@
       busy = false;
       busyClassA = false;
       busyClassB = false;
+      /* Фаза 6: звук (ui/sfx.js) — успех или «вольер полон». */
+      if (g.ui && g.ui.sfx && typeof g.ui.sfx.play === 'function') {
+        g.ui.sfx.play(rejected.length > 0 ? 'error' : 'success');
+      }
       if (rejected.length > 0) {
         dialog = { rejected: rejected, free: freeBefore, addedIds: addedIds };
         message = rejected.length + ' потомков не поместилось — выберите, кого оставить.';

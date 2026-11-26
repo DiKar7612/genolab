@@ -43,7 +43,7 @@
     var svg = g.render.creature.renderCreature(phen, 96);
     return '<article class="enclosure__card">' +
       '<div class="enclosure__card-svg">' + svg + '</div>' +
-      '<h3 class="enclosure__card-id">#' + esc(c.id) + ' — ' + esc(sp.name) + '</h3>' +
+      '<h2 class="enclosure__card-id">#' + esc(c.id) + ' — ' + esc(sp.name) + '</h2>' +
       '<p class="enclosure__card-pheno">' + esc(phLabel(phen, sp)) + '</p>' +
       '<div class="enclosure__card-actions">' +
       '<button class="btn enclosure__keep" type="button">Оставить</button>' +
@@ -52,13 +52,27 @@
       '</article>';
   }
 
+  /* Фаза 6: звук (ui/sfx.js) — только error при неудачных действиях. */
+  function sfxError() {
+    if (g.ui && g.ui.sfx && typeof g.ui.sfx.play === 'function') {
+      g.ui.sfx.play('error');
+    }
+  }
+
   var currentContainer = null;
 
   function renderScreen(container) {
     var store = g.state.store;
     var save = g.state.save;
+    var econ = g.core.economy;
     var st = store.getState();
-    var price = (g.core.economy.getPrice('sellCreature')) || 0;
+    var price = (econ.getPrice('sellCreature')) || 0;
+    /* Фаза 6: кнопка «Купить слот» — store.buySlot() (цена/предел из
+     * конфига; ТЗ §3.2.4 — «12 слотов на старте», расширение до max). */
+    var slotPrice = (econ.getPrice('buySlot')) || 0;
+    var maxSlots = (econ.getConfig && econ.getConfig() &&
+      econ.getConfig().slots && econ.getConfig().slots.max) || 24;
+    var atMax = st.slotLimit >= maxSlots;
 
     var html = '<section class="screen" aria-labelledby="screen-title">' +
       '<h1 class="screen__title" id="screen-title">Вольер</h1>' +
@@ -69,6 +83,9 @@
     }
 
     html += '<div class="enclosure__actions">' +
+      '<button class="btn enclosure__buy-slot" type="button"' + (atMax ? ' disabled' : '') +
+      (atMax ? ' title="Максимум слотов (' + maxSlots + ')' : '') +
+      '>Купить слот (' + slotPrice + ' мон.)</button>' +
       '<button class="btn enclosure__export" type="button">Экспорт сейва</button>' +
       '<label class="btn enclosure__import">Импорт сейва' +
       '<input class="enclosure__import-input" type="file" accept=".json,application/json" hidden></label>' +
@@ -109,9 +126,26 @@
         else {
           var box = cardEl.querySelector('.enclosure__card-actions');
           box.textContent = r.reason;
+          sfxError();
         }
       });
     });
+
+    /* Фаза 6: покупка доп. слота — store.buySlot(), цена из конфига. */
+    var buyBtn = container.querySelector('.enclosure__buy-slot');
+    if (buyBtn) {
+      buyBtn.addEventListener('click', function () {
+        var r = store.buySlot();
+        if (r.ok) {
+          toast('Слот куплен: ' + r.slotLimit + '/' + maxSlots, 'ok');
+        } else {
+          toast(r.reason, 'err');
+          sfxError();
+        }
+        /* При успехе store.emit() — подписчик ниже перерисует экран; */
+        /* при неудаче состояние не меняется — перерисовка не нужна.  */
+      });
+    }
 
     container.querySelector('.enclosure__export').addEventListener('click', function () {
       var r = save.exportFile();
@@ -136,6 +170,7 @@
         actions.appendChild(msg);
         setTimeout(function () { msg.remove(); }, 4000);
         toast(r.ok ? 'Сейв импортирован.' : r.reason, r.ok ? 'ok' : 'err');
+        if (!r.ok) sfxError();
       });
     });
   }

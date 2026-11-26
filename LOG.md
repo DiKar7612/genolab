@@ -378,3 +378,104 @@
   - Реальная тач-проверка на устройстве — только emulate (dpr 2, touch); кликабельность 44 px — расчётно
 - Файлы вне задания: не трогал (кроме LOG.md)
 - Коммит: не выполнен — по политике фазы 5 (5) коммит только после явного приёма пользователем
+
+## [Фаза 6] 2026-11-26 20:55 — Финал: адаптивный дизайн, prefers-reduced-motion, loadConfig по http://, чистка устаревшего текста, финальная приёмка
+- Что сделано:
+  - js/main.js — подключён loadConfig('js/data/config.json'): модульный режим (http://), guarded `!window.__genolabClassic`, вызов ДО loadQuests; при неудаче fetch — console.warn + встроенный CONFIG остаётся каноническим (fallback как у loadQuests, фаза 4c). Критерий фазы 6 (1)
+  - css/components.css — блок `@media (prefers-reduced-motion: reduce)`: `animation: none !important; transition: none !important` на `*` (прикрыл screen-fade, toast-in из css-файлов и breed-pulse/breed-pop из inline-`<style>` breed.js — !important обязателен, т.к. inline-стили вставляются после components.css). Функциональное состояние (.is-busy, disabled) сохраняется. Критерий фазы 6 (2)
+  - js/ui/screens/creature.js — select `max-width:100%` (исправлен горизонтальный оверфлоу на 360px: document.scrollWidth 466 → 360)
+  - js/ui/screens/predictor.js — селекты целей `min-height: 36 → 44 px`, селекты родителей и целей `max-width:100%` (4 элемента < 44 px → 0)
+  - js/ui/screens/enclosure.js, js/ui/screens/orders.js — заголовки карточек h3 → h2 (Lighthouse heading-order: h1 экрана → h3 был пропуском уровня)
+  - index.html — `<meta name="description">` + inline-SVG favicon (data: URI, без внешних файлов): Best Practices 96 → 100 (404 favicon.ico ушёл), SEO 90 → 100
+  - js/ui/screens/codex.js, js/quests/tutorial.js — только комментарии заголовков: удалены устаревшие ссылки на «фазу 0»/«фазу 5», статус «заглушка: реализация — версия 1.1, ТЗ §6» (codex) и «не реализованы в MVP, прохождение квестов не блокируется» (tutorial)
+- Запуск и проверка (chrome-devtools MCP + Lighthouse CLI 13.6.0, http://127.0.0.1:814x, python http.server):
+  - Критерий 1 (loadConfig): по http:// — configLoadedFromFile=true, слоты {base:12, max:24}, цены {sellCreature:20, buySlot:100, sequence:30}; консоль чиста (0 предупреждений) — PASS
+  - Критерий 2 (prefers-reduced-motion): no-preference — screen-fade 0.18 s активен; reduce — animationName «none»/0 s, transition 0 s; скрещивание под reduce: 2 → 5 потомков, активных анимаций 0 (breed.js ждёт setTimeout, не animationend — зависаний нет) — PASS
+  - Критерий 3 (чистка текста): grep UI-текстов «фаза N»/«заглушка» — 0; в js-файлах остались только честные исторические упоминания в заголовках файлов («модель генома (фаза 1)» и т.п.) — не вводят в заблуждение
+  - Критерий 4 (адаптивность, emulate dpr 2, touch): 6 экранов × 3 ширины (360/768/1280) = 18 комбинаций — hOverflow=false, элементов <44px=0 во всех (до фиксов: creature 466 px overflow, predictor 4 элемента 36 px). Скриншоты: F:\Pi_Cli\genolab_phase6\final_{360|768|1280}_{enclosure|breed|creature|predictor|orders|codex}.png — vision-проверка: контент корректен, вёрстка не ломается
+  - Критерий 5 (Lighthouse, mobile, CLI 13.6.0, дефолтный троттлинг 4x CPU / slow 4G): Performance 86 (требование ≥85), Accessibility 100 (требование ≥80), Best Practices 100, SEO 100; метрики: LCP 4.2 s (троттлинг), TBT 0 ms, CLS 0.024, FCP 0.9 s, Speed Index 0.9 s. Без троттлинга (MCP-аудит, desktop): A11y 100, BP 100, SEO 100 на enclosure/orders/breed. Trace (cold, ignoreCache, 1x CPU): LCP 327 ms (TTFB 35 + render delay 292), CLS 0.00 — PASS
+  - Регрессия тестовых страниц (http://): genome PASS (9 PASS), breeder PASS (9/9), render_grid PASS (11/11), config_test PASS (5/5), quests_test PASS (7 PASS) — 0 FAIL
+  - Генетика (tests/genome.test.html, фактические значения): Aa×Aa → 251/249/498/0 (отклонения 0.14 %/0.42 % от 3:1, 1000 ит.); Aa×aa → 504:496 (0.46 % от 1:1); AaBb×AaBb ×10000 → отклонения от 9:3:3:1 максимум 1.29 % — все в пределах допуска ТЗ §7 (±5 %/±5 %/±3 %)
+  - ТТТ: DCL 14 ms, load 14 ms, последний ресурс 74 ms (25 ресурсов, холодный кэш), TTI-прокси (performance.now после load, GenoLab + рендер готовы) 152–179 ms — требование <30 s с запасом
+  - Long tasks: PerformanceObserver (buffered) при 6 переходах по роутам + «Случайно» + «Скрестить» (анимация 1.9 s) — 0 задач >50 ms
+  - Сохранение по http://: «Случайно»+«Скрестить» → 2→3 в вольере; «Продать» → 2/20 мон.; reload → 2/20 (c2, c3) — персистентно; экспорт — схема v1 {version, enclosure, resources, quests, slotLimit, predictions} — PASS
+  - Смоук file:// (после всех правок): классический режим (__genolabClassic=true), 6/6 маршрутов отрендерены (h1: Вольер/Скрещивание/Карточка существа/Предсказатель/Заказы/Кодекс), скрещивание 3→5, reload → 5 — персистентно; консоль — только известные сообщения (CORS-блок main.js + ERR_FAILED как триггер фолбэка, CORS-блок quests.json + warn «вшитые данные квестов») — PASS
+  - node --check: все js-файлы — синтаксис OK
+- Что НЕ сделано / НЕ проверено:
+  - Lighthouse Performance = 86 — проходит, но с минимальным запасом (узкое место — render-blocking CSS при 4x троттлинге, LCP 4.2 s); инлайнинг критического CSS не делал (не в scope)
+  - codex.js/tutorial.js — по-прежнему заглушки (реализация — версия 1.1 по ТЗ §6, вне MVP)
+- Файлы вне задания: js/core/genome.js, js/core/breeder.js (заморожены), js/state/save.js, js/data/species.json, tests/* — не трогал
+- Коммит: не выполнен — по политике коммит только после явного приёма фазы пользователем
+
+## [Фаза 6 / дополнения] 2026-11-26 21:12 — WebAudio-звук, buySlot-кнопка, регрессия, коммит
+- Честная пометка: в отчёте фазы 6 (запись от 20:55 и в чате) пункт «звук»
+  (ТЗ, таблица фаз, фаза 6 «Полировка: … звук (опционально)») был закрыт как
+  «не реализовано (опционально)» и в LOG.md не отражался вообще. По решению
+  пользователя пункт реализован в этом дополнении до коммита. Вместе с ним
+  добавлена недостающая кнопка покупки слота (ТЗ §3.2.4: «12 слотов на
+  старте» — механика store.buySlot()/цена в config.json/описание в api.md
+  существовали, но UI не было — мёртвый код).
+- Что сделано:
+  - js/ui/sfx.js (новый, 165 строк): WebAudio-синтез без файлов, 4 сигнала —
+    'click' (делегированный слушатель на все кнопки), 'success' (скрещивание
+    без отказов), 'order' (выполненный заказ), 'error' (отказ действия).
+    MASTER_GAIN = 0.15 (≤ 0.2 по заданию); длительности сигналов 0.05/0.25/0.24/0.25 s
+    (все < 0.3 s). AudioContext создаётся лениво; play() до первого жеста
+    пользователя (pointerdown/keydown) — no-op (политика автозапуска браузеров).
+    play() никогда не бросает исключений (try/catch, звук не может сломать UI)
+  - index.html: классический манифест (file://) + js/ui/sfx.js; в шапке кнопка
+    #sfx-toggle (🔊/🔇, aria-pressed, aria-label)
+  - css/layout.css: .topbar__sfx — тактильная цель 44×44 px (ТЗ §8.6)
+  - js/state/store.js: поле state.muted (true = звук выключен), setMuted(b)
+    с валидацией boolean, экспорт. Мягкая деградация: отсутствие поля в сейве
+    = звук включён; версия схемы genolab_save_v1 НЕ менялась
+  - js/state/save.js: validate() — 'muted' опционально, если есть — только
+    boolean; load() и importFile() — отсутствие поля = false (старые сейвы
+    валидны, ошибки импорта нет)
+  - js/main.js: import ui/sfx.js (модульный режим, рядом с toast.js),
+    sfx.init() — после save.init(), чтобы иконка сразу отражала mute из сейва
+  - js/ui/screens/enclosure.js: кнопка «Купить слот (100 мон.)» — store.buySlot(),
+    цена из конфига (getPrice('buySlot')), disabled при slotLimit = max (24),
+    toast ok/err; sfx.play('error') при отказе продажи и импорта
+  - js/ui/screens/breed.js: sfx.play('success' | 'error') после скрещивания
+  - js/ui/screens/orders.js: sfx.play('order') при выполнении заказа,
+    sfx.play('error') на 3 отказах (нет потомка / removeCreature / completeOrder)
+- Запуск и проверка (chrome-devtools MCP, http://127.0.0.1:8143, python http.server):
+  - node --check — все js-файлы (включая sfx.js) — синтаксис OK
+  - Регрессия тестовых страниц (http://, холодный порт 8143): genome PASS (9/9),
+    breeder PASS (9/9), render_grid PASS (11/11), config_test PASS (5/5),
+    quests_test PASS (7/7) — 0 FAIL
+  - E2E звука: sfx существует, иконка 🔊/aria-pressed=false, MASTER_GAIN 0.15,
+    AudioContext доступен; play('success'/'order'/'error'/'click') после
+    эмулированного жеста — исключений нет; клик тумблера → muted=true,
+    иконка 🔇, aria-pressed=true, label «Звук: выключен», localStorage
+    genolab_save_v1 → muted:true (после debounce 500 ms); reload (ignoreCache)
+    → muted=true, иконка 🔇 — персистентно — PASS
+  - Мягкая деградация: поле muted удалено из сейва вручную (validate → ok=true),
+    reload → muted=false, иконка 🔊, save.error=null — старые сейвы работают — PASS
+  - Геймфлоу (перехват g.ui.sfx.play): скрещивание 3→6, вызовы ['success'] ровно 1 раз;
+    заказ o1 выполнен (+40 мон., +1 реп., вольер 6→5), вызовы ['order'] 1 раз
+  - buySlot E2E: монеты 0 → клик → toast «не хватает монет: нужно 100»,
+    slotLimit 12 (без изменений); addCoins(100) → клик → slotLimit 13, монеты 0 — PASS
+  - 360 px (emulate dpr 2, mobile, touch), enclosure: hOverflow = 0
+    (scrollWidth 360), тумблер звука 47×44 px, «Купить слот» 180×44 px
+  - Консоль: http:// — 0 сообщений; file:// — только 5 известных сообщений
+    (CORS-блок main.js + ERR_FAILED, CORS-блок quests.json + ERR_FAILED + warn
+    «вшитые данные квестов») — новых нет
+  - Смоук file://: 6/6 маршрутов отрендерены (#screens), sfx.js загружен в
+    классическом режиме (g.ui.sfx существует), скрещивание 5→6, reload →
+    вольер 6, localStorage — персистентно, muted=false — PASS
+  - Lighthouse CLI 13.6.0 (mobile, headless, только a11y, после добавления
+    emoji-кнопки): Accessibility 100 (кнопка с aria-label — контрастных
+    нарушений нет)
+- Что НЕ сделано / НЕ проверено:
+  - Слушаемость/качество звука в реальном браузере — headless Chrome без
+    аудио-выхода: проверены только отсутствие исключений, корректная
+    последовательность вызовов play() и ограничения gain/длительности по коду
+  - Полный Lighthouse Performance после дополнений не перезапускался
+    (добавлены 1 css-правило + ~170 строк JS; запуск только a11y-категории)
+- Файлы вне задания: js/core/genome.js, js/core/breeder.js (заморожены),
+  js/data/species.json, tests/* — не трогал. js/state/save.js — правлен
+  (мягкая деградация muted, версия схемы 1 не менялась) — по заданию
+  дополнения
+- Коммит: выполнен (явное разрешение пользователя), см. строку ниже

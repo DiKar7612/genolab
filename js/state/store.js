@@ -46,7 +46,11 @@
       slotLimit: cfg().slots.base,
       /* Фаза 5: счётчик прогнозов экрана «Предсказатель»
        * (TZ §3.4 — мини-тренажёр: всего проверок / попаданий). */
-      predictions: { total: 0, hits: 0 }
+      predictions: { total: 0, hits: 0 },
+      /* Фаза 6: звук (ui/sfx.js). true = mute. Мягкая деградация:
+       * в старых сейвах поля нет — звук включён (false), версия
+       * схемы genolab_save_v1 не меняется. */
+      muted: false
     };
   }
 
@@ -197,7 +201,10 @@
       predictions: (saved.predictions && typeof saved.predictions === 'object' &&
         !Array.isArray(saved.predictions))
         ? deepCopy(saved.predictions)
-        : { total: 0, hits: 0 }
+        : { total: 0, hits: 0 },
+      /* Фаза 6: mute — только boolean true мутит, отсутствие поля
+       * или мусор = звук включён (мягкая деградация). */
+      muted: saved.muted === true
     };
     emit();
   }
@@ -214,6 +221,20 @@
    * @param {boolean} hit — прогноз точен (в пределах допустимого отклонения)
    * @returns {{total: number, hits: number}} — обновлённый счётчик (копия)
    */
+  /**
+   * Фаза 6: переключить mute (ui/sfx.js, тумблер в шапке).
+   * @param {boolean} b — true = звук выключен
+   * @returns {boolean} — новое состояние mute
+   */
+  function setMuted(b) {
+    if (typeof b !== 'boolean') {
+      throw new Error('store: setMuted — не boolean');
+    }
+    current.muted = b;
+    emit();
+    return current.muted;
+  }
+
   function recordPrediction(hit) {
     if (typeof hit !== 'boolean') {
       throw new Error('store: recordPrediction — hit не boolean');
@@ -233,6 +254,7 @@
     sellCreature: sellCreature,
     setQuests: setQuests,
     buySlot: buySlot,
+    setMuted: setMuted,
     addCoins: addCoins,
     addReputation: addReputation,
     applyState: applyState,

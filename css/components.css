@@ -462,3 +462,18 @@
   color: var(--ink-soft);
   font-size: var(--font-size-sm);
 }
+
+/* --- Уважение настройки ОС: prefers-reduced-motion (фаза 6) ---
+   Декоративные анимации (screen-fade, toast-in, breed-pulse и
+   breed-pop из <style> экрана «Скрещивание») отключаются целиком;
+   !important — чтобы переопределить <style>, который экран breed.js
+   вставляет в DOM после этого файла. Функциональность не страдает:
+   состояние busy видно по классу и заблокированной кнопке. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

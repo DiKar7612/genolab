@@ -119,7 +119,7 @@
       if (o.done) cls += ' orders__item--done';
       else if (!o.match) cls += ' orders__item--waiting';
       html += '<article class="' + cls + '">' +
-        '<h3 class="orders__item-title">' + esc(o.title) + '</h3>' +
+        '<h2 class="orders__item-title">' + esc(o.title) + '</h2>' +
         '<p class="orders__item-phen">Признаки: ' + esc(phenLabel(o.phen)) + '</p>' +
         '<p class="orders__item-reward">Награда: ' + o.reward.coins + ' мон., ' +
         o.reward.reputation + ' реп.</p>';
@@ -138,6 +138,14 @@
     });
     return html;
   }
+
+  /* Фаза 6: звук (ui/sfx.js) — вызовы безопасны, если sfx не загружен. */
+  function sfxPlay(name) {
+    if (g.ui && g.ui.sfx && typeof g.ui.sfx.play === 'function') {
+      g.ui.sfx.play(name);
+    }
+  }
+  function sfxError() { sfxPlay('error'); }
 
   function bindOrders(container) {
     var engine = getEngine();
@@ -159,11 +167,17 @@
         var orderId = btn.getAttribute('data-order');
         var o = engine.listOrders().filter(function (x) { return x.id === orderId; })[0];
         if (!o || o.done) return;
-        if (!o.match) { message = 'Нет подходящего потомка.'; renderScreen(container); return; }
+        if (!o.match) {
+          message = 'Нет подходящего потомка.';
+          sfxError();
+          renderScreen(container);
+          return;
+        }
         var creatureId = o.match;
         var res = store.removeCreature(creatureId);
         if (!res.ok) {
           message = 'Не удалось передать #' + creatureId + ': ' + res.reason;
+          sfxError();
           renderScreen(container);
           return;
         }
@@ -181,8 +195,11 @@
             g.ui.toast.show('Заказ выполнен: +' + r.reward.coins + ' мон., +' +
               r.reward.reputation + ' реп.', 'ok');
           }
+          /* Фаза 6: звук (ui/sfx.js) — аккорд выполненного заказа. */
+          sfxPlay('order');
         } else {
           message = 'Ошибка: ' + r.reason;
+          sfxError();
         }
         renderScreen(container);
       });

@@ -40,6 +40,27 @@ body {
   justify-content: flex-end;
 }
 
+/* Фаза 6: тумблер звука (ui/sfx.js). Тактильная цель >= 44px (TZ §8.6),
+ * но вписывается в шапку за счёт вертикального отступа. */
+.topbar__sfx {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  font-size: 18px;
+  line-height: 1;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.topbar__sfx:hover {
+  border-color: var(--accent);
+}
+
 /* --- Навигация по экранам ---
    На 360px кнопки прокручиваются по горизонтали,
    на широких экранах — по центру. */

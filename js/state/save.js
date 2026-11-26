@@ -90,6 +90,11 @@
         obj.slotLimit > maxSlots()) {
       errors.push('slotLimit: ожидается целое 1..' + maxSlots());
     }
+    /* Фаза 6: mute — поле опциональное (старые сейвы: нет поля =
+     * звук включён); если есть — только boolean. Версия схемы 1. */
+    if ('muted' in obj && typeof obj.muted !== 'boolean') {
+      errors.push('muted: ожидается boolean');
+    }
     return { ok: errors.length === 0, errors: errors };
   }
 
@@ -145,6 +150,10 @@
      * (версия схемы genolab_save_v1 не меняется). */
     if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('predictions' in obj)) {
       obj.predictions = { total: 0, hits: 0 };
+    }
+    /* Сейвы до фазы 6: нет поля muted = звук включён (false). */
+    if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('muted' in obj)) {
+      obj.muted = false;
     }
     var v = validate(obj);
     if (!v.ok) {
@@ -233,6 +242,10 @@
         /* Файлы-сейвы до фазы 5: дефолт счётчика прогнозов. */
         if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('predictions' in obj)) {
           obj.predictions = { total: 0, hits: 0 };
+        }
+        /* Файлы-сейвы до фазы 6: нет поля muted = звук включён. */
+        if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('muted' in obj)) {
+          obj.muted = false;
         }
         var v = validate(obj);
         if (!v.ok) {
