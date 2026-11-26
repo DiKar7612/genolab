@@ -1,32 +1,59 @@
 /* ============================================================
-   ГеноЛаб — базовые стили: палитра, reset, системный шрифт.
+   ГеноЛаб — базовые стили: палитра «Тёплый клин», reset.
+   Источник правды по стилю — ART_STYLE.md (разделы 1–4).
    ============================================================ */
 
 :root {
-  /* Палитра (ТЗ, раздел 4) */
-  --color-bg: #1a1a1a;        /* чёрный — фон */
-  --color-beige: #e8d5b0;     /* бежевый — основной текст */
-  --color-gray: #d3d3d3;      /* светло-серый — второстепенное */
-  --color-gold: #d4af37;      /* золото — акценты, кнопки */
+  /* --- Палитра: ART_STYLE.md §1 --- */
+  --bg: #faf6f0;              /* фон приложения (кремовый) */
+  --surface: #ffffff;         /* карточки, панели */
+  --surface-warm: #f4ece1;    /* вторичные подложки, слоты */
+  --ink: #3d3229;             /* основной текст (какао) */
+  --ink-soft: #7a6a5c;        /* вторичный текст */
+  --line: #e5d9c9;            /* границы, разделители */
+  --accent: #c2542d;          /* терракота: кнопки, акценты, CTA */
+  --accent-hover: #a8431f;    /* hover активных кнопок */
+  --gold: #b8860b;            /* монеты, награды */
+  --ok: #4a7c59;              /* успех */
+  --danger: #a63d3d;          /* ошибки */
 
-  /* Производные цвета */
-  --color-surface: #232019;       /* панель */
-  --color-surface-2: #2b2620;     /* приподнятая панель */
-  --color-border: #4a4436;        /* границы панелей */
-  --color-beige-dim: rgba(232, 213, 176, 0.55);
-  --color-gold-dim: rgba(212, 175, 55, 0.35);
+  /* Производные: полупрозрачные варианты и текст на акценте */
+  --accent-dim: rgba(194, 84, 45, 0.35);   /* приглушённые рамки, hover */
+  --accent-glow: rgba(194, 84, 45, 0.12);  /* подсветка выбранного */
+  --on-accent: #ffffff;                  /* текст на --accent */
 
-  /* Шрифты: системный стек, без внешних шрифтов */
-  --font-stack: system-ui, -apple-system, "Segoe UI", Roboto,
-                "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  /* --- Совместимость: имена старой палитры (фаза 0–2) ---
+     Используются тестовыми страницами tests/*.html (вне перечня
+     файлов фазы 0.5). В css/layout.css и css/components.css
+     новые токены применяются напрямую. */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-warm);
+  --color-beige: var(--ink);
+  --color-gray: var(--ink-soft);
+  --color-gold: var(--accent);
+  --color-gold-dim: var(--accent-dim);
+  --color-border: var(--line);
+  --color-beige-dim: var(--ink-soft);
+
+  /* Шрифты: системный стек, без внешних шрифтов (ART_STYLE.md §3) */
+  --font-stack: -apple-system, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
 
   /* Размеры */
   --font-size-base: 16px;
   --font-size-sm: 14px;
-  --radius: 10px;
   --gap: 12px;
   --topbar-h: 48px;
   --content-max: 1100px;
+
+  /* Радиусы и тени: ART_STYLE.md §4 */
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+  --radius: var(--r-m);
+  --shadow-s: 0 1px 3px rgba(61, 50, 41, 0.08);
+  --shadow-m: 0 4px 12px rgba(61, 50, 41, 0.08);
 }
 
 /* --- Reset --- */
@@ -37,7 +64,7 @@
 }
 
 html {
-  font-size: var(--font-size-base);
+  font-size: 110%; /* ART_STYLE.md §3: глобальное увеличение на 10% */
   -webkit-text-size-adjust: 100%;
 }
 
@@ -46,12 +73,17 @@ body {
   font-family: var(--font-stack);
   font-size: 1rem;
   line-height: 1.45;
-  color: var(--color-beige);
-  background-color: var(--color-bg);
+  font-weight: 400;
+  color: var(--ink);
+  background-color: var(--bg);
 }
 
 h1, h2, h3, p {
   margin: 0 0 0.75em;
+}
+
+h1, h2, h3 {
+  font-weight: 700;
 }
 
 h1 {
@@ -86,9 +118,9 @@ a {
   display: none !important;
 }
 
-/* Фокус для клавиатурной навигации */
+/* Фокус для клавиатурной навигации (ART_STYLE.md §4) */
 :focus-visible {
-  outline: 2px solid var(--color-gold);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 4px;
 }

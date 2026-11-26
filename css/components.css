@@ -10,19 +10,19 @@
 }
 
 .screen__title {
-  color: var(--color-gold);
+  color: var(--accent);
 }
 
 .screen__hint {
-  color: var(--color-gray);
+  color: var(--ink-soft);
   font-size: var(--font-size-sm);
 }
 
 .screen__stub {
   padding: 16px;
-  border: 1px dashed var(--color-border);
+  border: 1px dashed var(--line);
   border-radius: var(--radius);
-  color: var(--color-gray);
+  color: var(--ink-soft);
 }
 
 /* --- Кнопки --- */
@@ -33,30 +33,31 @@
   gap: 6px;
   min-height: 40px;
   padding: 8px 16px;
-  border: 1px solid var(--color-gold-dim);
+  border: 1px solid var(--accent-dim);
   border-radius: var(--radius);
-  background: var(--color-surface-2);
-  color: var(--color-beige);
+  background: var(--surface-warm);
+  color: var(--ink);
   font-size: var(--font-size-sm);
   font-weight: 500;
   transition: border-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
 }
 
 .btn:hover:not(:disabled) {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .btn--primary {
-  background: var(--color-gold);
-  border-color: var(--color-gold);
-  color: var(--color-bg);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
   font-weight: 600;
 }
 
 .btn--primary:hover:not(:disabled) {
-  color: var(--color-bg);
-  filter: brightness(1.12);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--on-accent);
 }
 
 .btn:disabled {
@@ -70,20 +71,23 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--color-surface);
+  background: var(--surface);
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
 .resource--coins {
-  color: var(--color-gold);
-  border-color: var(--color-gold-dim);
+  /* --gold: только для чисел ≥ 16px или полужирных (ART_STYLE.md §2) */
+  color: var(--gold);
+  border-color: var(--line);
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .resource--rep {
-  color: var(--color-gray);
+  color: var(--ink-soft);
 }
 
 /* --- Вольер: сетка карточек существ --- */
@@ -106,9 +110,10 @@
   gap: 6px;
   min-height: 110px;
   padding: 10px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-s);
 }
 
 .creature-card--empty {
@@ -120,14 +125,14 @@
   display: grid;
   place-items: center;
   min-height: 72px;
-  border: 1px dashed var(--color-border);
+  border: 1px dashed var(--line);
   border-radius: 8px;
-  color: var(--color-beige-dim);
+  color: var(--ink-soft);
 }
 
 .creature-card__slot {
   font-size: 12px;
-  color: var(--color-beige-dim);
+  color: var(--ink-soft);
 }
 
 /* --- Скрещивание --- */
@@ -144,21 +149,21 @@
   gap: 6px;
   min-height: 130px;
   padding: 10px;
-  border: 1px dashed var(--color-border);
+  border: 1px dashed var(--line);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--surface);
 }
 
 .breed-slot__sprite {
   flex: 1;
   display: grid;
   place-items: center;
-  color: var(--color-beige-dim);
+  color: var(--ink-soft);
 }
 
 .breed-slot__label {
   font-size: var(--font-size-sm);
-  color: var(--color-gray);
+  color: var(--ink-soft);
   text-align: center;
 }
 
@@ -166,7 +171,7 @@
   display: grid;
   place-items: center;
   font-size: 1.5rem;
-  color: var(--color-gold);
+  color: var(--accent);
 }
 
 .breed__actions {
@@ -176,7 +181,7 @@
 }
 
 .breed__result {
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--line);
   padding-top: 12px;
 }
 
@@ -191,10 +196,10 @@
   place-items: center;
   min-height: 200px;
   padding: 12px;
-  border: 1px dashed var(--color-border);
+  border: 1px dashed var(--line);
   border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-beige-dim);
+  background: var(--surface);
+  color: var(--ink-soft);
 }
 
 .creature__info {
@@ -210,6 +215,127 @@
   }
 }
 
+/* --- Карточка существа: родословная (заглушка фазы 2) --- */
+.creature__pedigree {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+}
+
+.creature__pedigree h2 {
+  margin-bottom: 4px;
+  font-size: var(--font-size-base);
+  color: var(--accent);
+}
+
+.creature__sprite svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.creature-card__sprite svg,
+.breed-slot__sprite svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* --- Решётка Пеннета (фаза 2) --- */
+.pennett {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pennett__title {
+  font-size: var(--font-size-sm);
+  color: var(--accent);
+}
+
+.pennett__grid {
+  display: grid;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.pennett__corner {
+  display: grid;
+  place-items: center;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.pennett__head,
+.pennett__rowhead {
+  display: grid;
+  place-items: center;
+  padding: 8px 6px;
+  background: var(--surface-warm);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--accent);
+}
+
+.pennett__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pennett__cell:hover {
+  border-color: var(--accent-dim);
+}
+
+.pennett__cell.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.pennett__cell-sprite svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.pennett__cell-geno {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.pennett__cell-frac {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.pennett__info {
+  font-size: var(--font-size-sm);
+  color: var(--accent);
+}
+
+.pennett__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pennett__legend-item {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
 /* --- Заказы --- */
 .orders-list {
   display: grid;
@@ -222,9 +348,10 @@
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-s);
 }
 
 .order__title {
@@ -234,19 +361,19 @@
 .order__desc {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-gray);
+  color: var(--ink-soft);
 }
 
 .order__reward {
   flex: 0 0 auto;
-  color: var(--color-gold);
+  color: var(--accent);
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
 /* --- Кодекс --- */
 .codex__progress {
-  color: var(--color-gray);
+  color: var(--ink-soft);
   font-size: var(--font-size-sm);
 }
 
@@ -260,11 +387,11 @@
 .codex-table td {
   padding: 8px 10px;
   text-align: left;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--line);
 }
 
 .codex-table th {
-  color: var(--color-gold);
+  color: var(--accent);
 }
 
 /* --- Пустые состояния --- */
@@ -272,8 +399,8 @@
   margin: 0;
   padding: 16px;
   text-align: center;
-  border: 1px dashed var(--color-border);
+  border: 1px dashed var(--line);
   border-radius: var(--radius);
-  color: var(--color-beige-dim);
+  color: var(--ink-soft);
   font-size: var(--font-size-sm);
 }
