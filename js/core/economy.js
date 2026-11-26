@@ -10,6 +10,11 @@
  * (по http://) подменяет вшитый конфиг файлом после валидации формы.
  * Совпадение двух копий проверяет tests/config_test.html (паттерн
  * из genome.js / tests/genome.test.html).
+ *
+ * Контракт правки правил игры (обязателен): правила правятся в ДВУХ
+ * местах — js/data/config.json И вшитая CONFIG ниже. Рассинхрон ловит
+ * T1 tests/config_test.html (запускать по http://, например
+ * python -m http.server: fetch локального JSON по file:// заблокирован).
  */
 (function (global) {
   'use strict';
@@ -17,7 +22,9 @@
   var g = global.GenoLab = global.GenoLab || {};
   var core = g.core = g.core || {};
 
-  /* Точная копия js/data/config.json. */
+  /* Точная копия js/data/config.json.
+   * Править правила только вместе с файлом (контракт в шапке файла);
+   * рассинхрон ловит T1 tests/config_test.html. */
   var CONFIG = {
     version: 1,
     slots: { base: 12, max: 24 },
