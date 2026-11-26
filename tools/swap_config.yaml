@@ -1,0 +1,40 @@
+# swap_config.yaml — конфиг llama-swap для GenoLab
+# Единый адрес для Pi-Cli и vision_check: http://127.0.0.1:8080/v1
+# Плейсхолдеры помечены <...> — впишите свои пути.
+
+health-check-timeout: 15
+startup-timeout: 120        # 27B грузится до 90 с — запас обязателен
+log-level: info
+
+models:
+  main:
+    # Основная текстовая модель агента (qwen3.8-27b)
+    cmd: >
+      <LLAMA_SERVER_EXE>
+      --model <GGUF_27B>
+      --host 127.0.0.1 --port ${PORT}
+      --ctx-size 16384
+      --n-gpu-layers 999
+      --flash-attn on
+    ttl: 3600            # держим час; выгрузка RAM/VRAM после простоя
+    aliases:
+      - default
+
+  vision:
+    # Мультимодальная модель для просмотра скриншотов
+    cmd: >
+      <LLAMA_SERVER_EXE>
+      --model D:\Voise-to-text_Agent_V1\Chat_Mobile\models\Qwen2.5-VL-3B-Instruct-Q4_K_M\Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf
+      --mmproj D:\Voise-to-text_Agent_V1\Chat_Mobile\models\Qwen2.5-VL-3B-Instruct-Q4_K_M\mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf
+      --host 127.0.0.1 --port ${PORT}
+      --ctx-size 8192
+      --n-gpu-layers 999
+      --flash-attn on
+    ttl: 120             # ВЫГРУЗКА ЧЕРЕЗ 2 МИНУТЫ после последнего vision-запроса
+    aliases:
+      - vision-model
+
+# Как это работает:
+# - запрос на model "main"   -> поднимается 27B, vision (если был) выгружается
+# - запрос на model "vision" -> 27B выгружается, поднимается VL-3B (~10-15 c)
+# - простои: vision выгружен через 120 c, main через 3600 c
