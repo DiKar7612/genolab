@@ -552,3 +552,10 @@
 - Файлы вне задания: js/core/genome.js, js/core/breeder.js (заморожены —
   не трогал), js/render/*, tests/* (кроме нового mutation_test.html)
 - Коммит: выполнен (явное разрешение пользователя), см. строку ниже
+
+## [Фаза 7a / приёмка] 2026-11-27 15:28 — Коммит
+- Коммит 2325677 «Фаза 7a: мутации — js/core/mutation.js (flipGenome вне
+  cross), UI-бейдж и счётчик, мягкая деградация сейва,
+  tests/mutation_test.html 5/5» (14 файлов, +212/−24, новые:
+  js/core/mutation.js, tests/mutation_test.html, docs/screenshots/×2,
+  Prompts/phase7a_mutations.md)
