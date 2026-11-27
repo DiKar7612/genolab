@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Тесты: breeder (фаза 1, гейт)</title>
+  <title>Тесты: breeder (фаза 1 + 7b, гейт)</title>
   <link rel="stylesheet" href="../css/base.css">
   <style>
     #results table { border-collapse: collapse; margin: 12px 0; }
@@ -21,12 +21,15 @@
   <script src="../js/core/breeder.js"></script>
 </head>
 <body style="padding: 24px;">
-  <h1>Тесты: js/core/breeder.js (фаза 1 — гейт)</h1>
+  <h1>Тесты: js/core/breeder.js (фаза 1 — гейт + фаза 7b — неполное доминирование)</h1>
   <p>10 000 скрещиваний на каждый вероятностный тест, детерминированный ГСЧ
      mulberry32 с фиксированными seed (результат воспроизводим).
      «Отклонение» = |наблюдаемая доля − ожидаемая| / ожидаемая × 100.
-     Критерии — genolab_tz.md §7: Aa×Aa → 3:1 ±5%; Aa×aa → 1:1 ±5%;
-     AaBb×AaBb → 9:3:3:1 ±3%.</p>
+     Критерии — genolab_tz.md §7 (обновлено в 7b): полное доминирование
+     (узор/размер/уши): Bb×Bb → 3:1 ±5%; Bb×bb → 1:1 ±5%;
+     BbCc×BbCc → 9:3:3:1 ±3%. Неполное доминирование (окрас, фаза 7b):
+     Aa×Aa → 1:2:1 ±5%; Aa×aa → 1:1 палевый:белый ±5%;
+     AA×Aa → 1:1 коричневый:палевый ±5%.</p>
   <div id="results"><p>Выполняются тесты…</p></div>
   <script>
   (function () {
@@ -76,24 +79,31 @@
     }
 
     var mk = function (pairs) { return G.core.genome.createGenome('golo', pairs); };
-    var Aa   = mk([['A', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
-    var aa   = mk([['a', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
-    var AaBb = mk([['A', 'a'], ['B', 'b'], ['C', 'C'], ['D', 'D']]);
+    /* Фаза 7b: T1–T3 переведены на узор/размер (полное доминирование);
+     * окрасные распределения — отдельные тесты T7–T9 (неполное доминирование). */
+    var Bb   = mk([['A', 'a'], ['B', 'b'], ['C', 'C'], ['D', 'D']]);
+    var bb   = mk([['a', 'a'], ['b', 'b'], ['C', 'C'], ['D', 'D']]);
+    var BbCc = mk([['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'D']]);
+    var AaC  = mk([['A', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]); /* окрас Aa, остальное домин. */
+    var aaC  = mk([['a', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]); /* окрас aa */
+    var AAC  = mk([['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']]); /* окрас AA */
 
-    function dom1(ch) { return (ch.pairs[0][0] === 'A' || ch.pairs[0][1] === 'A') ? 'доминантный (A_)' : 'рецессивный (aa)'; }
+    function pat1(ch) { return (ch.pairs[1][0] === 'B' || ch.pairs[1][1] === 'B') ? 'доминантный (B_)' : 'рецессивный (bb)'; }
     function dihybrid(ch) {
-      var d1 = (ch.pairs[0][0] === 'A' || ch.pairs[0][1] === 'A');
-      var d2 = (ch.pairs[1][0] === 'B' || ch.pairs[1][1] === 'B');
-      return (d1 ? 'A_' : 'aa') + (d2 ? 'B_' : 'bb');
+      var d1 = (ch.pairs[1][0] === 'B' || ch.pairs[1][1] === 'B');
+      var d2 = (ch.pairs[2][0] === 'C' || ch.pairs[2][1] === 'C');
+      return (d1 ? 'B_' : 'bb') + (d2 ? 'C_' : 'cc');
     }
+    /* Фенотип окраса через genomeToPhenotype (фаза 7b: Aa → «палевый»). */
+    function colorPhen(ch) { return G.core.genome.genomeToPhenotype(ch).color; }
 
-    /* 1–3. Вероятностные распределения (10 000 скрещиваний каждое). */
-    distTest('T1. Aa×Aa → 3:1 (±5%)', 101, Aa, Aa, dom1,
-      { 'доминантный (A_)': 0.75, 'рецессивный (aa)': 0.25 }, 5);
-    distTest('T2. Aa×aa → 1:1 (±5%)', 201, Aa, aa, dom1,
-      { 'доминантный (A_)': 0.5, 'рецессивный (aa)': 0.5 }, 5);
-    distTest('T3. AaBb×AaBb → 9:3:3:1 (±3%)', 303, AaBb, AaBb, dihybrid,
-      { 'A_B_': 9 / 16, 'A_bb': 3 / 16, 'aaB_': 3 / 16, 'aabb': 1 / 16 }, 3);
+    /* 1–3. Полное доминирование: узор и размер (10 000 скрещиваний). */
+    distTest('T1. Bb×Bb (узор) → 3:1 (±5%)', 101, Bb, Bb, pat1,
+      { 'доминантный (B_)': 0.75, 'рецессивный (bb)': 0.25 }, 5);
+    distTest('T2. Bb×bb (узор) → 1:1 (±5%)', 201, Bb, bb, pat1,
+      { 'доминантный (B_)': 0.5, 'рецессивный (bb)': 0.5 }, 5);
+    distTest('T3. BbCc×BbCc (узор×размер) → 9:3:3:1 (±3%)', 303, BbCc, BbCc, dihybrid,
+      { 'B_C_': 9 / 16, 'B_cc': 3 / 16, 'bbC_': 3 / 16, 'bbcc': 1 / 16 }, 3);
 
     /* 4. Количество потомков: 1000 скрещиваний, 1–4 шт., геномы валидны. */
     (function () {
@@ -101,7 +111,7 @@
       var badGenomes = 0;
       var rng = G.core.rng.createRng(900);
       for (var i = 0; i < 1000; i++) {
-        var kids = G.core.breeder.cross(AaBb, AaBb, rng);
+        var kids = G.core.breeder.cross(BbCc, BbCc, rng);
         if (kids.length < 1 || kids.length > 4) {
           counts[0] = (counts[0] || 0) + 1;
         } else {
@@ -124,10 +134,10 @@
       var bad = 0;
       var total = 0;
       for (var i = 0; i < 500; i++) {
-        G.core.breeder.cross(AaBb, aa, rng).forEach(function (k) {
+        G.core.breeder.cross(BbCc, bb, rng).forEach(function (k) {
           k.pairs.forEach(function (p, j) {
             total++;
-            var pa = AaBb.pairs[j], pb = aa.pairs[j];
+            var pa = BbCc.pairs[j], pb = bb.pairs[j];
             if (p[0] !== pa[0] && p[0] !== pa[1]) bad++;
             if (p[1] !== pb[0] && p[1] !== pb[1]) bad++;
           });
@@ -144,7 +154,7 @@
         var rng = G.core.rng.createRng(seed);
         var s = '';
         for (var i = 0; i < 200; i++) {
-          G.core.breeder.cross(AaBb, AaBb, rng).forEach(function (k) {
+          G.core.breeder.cross(BbCc, BbCc, rng).forEach(function (k) {
             s += G.core.genome.genotypeString(k) + ';';
           });
         }
@@ -157,41 +167,50 @@
          ', seed 4321 отличается=' + (s1 !== s3) + ', длина последовательности=' + s1.length]);
     })();
 
-    /* 7. pennettGrid Aa×Aa: решётка 2×2, точные доли. */
+    /* 7–9. Неполное доминирование окраса (фаза 7b, 10 000 скрещиваний). */
+    distTest('T7. Aa×Aa (окрас) → 1:2:1 коричневый:палевый:белый (±5%)', 404, AaC, AaC, colorPhen,
+      { 'коричневый': 0.25, 'палевый': 0.5, 'белый': 0.25 }, 5);
+    distTest('T8. Aa×aa (окрас) → 1:1 палевый:белый (±5%)', 505, AaC, aaC, colorPhen,
+      { 'палевый': 0.5, 'белый': 0.5 }, 5);
+    distTest('T9. AA×Aa (окрас) → 1:1 коричневый:палевый (±5%)', 606, AAC, AaC, colorPhen,
+      { 'коричневый': 0.5, 'палевый': 0.5 }, 5);
+
+    /* 10. pennettGrid Aa×Aa (окрас): решётка 2×2, точные доли 1:2:1. */
     (function () {
-      var grid = G.core.breeder.pennettGrid(Aa, Aa);
+      var grid = G.core.breeder.pennettGrid(AaC, AaC, ['color']);
       var ok = grid.rows === 2 && grid.cols === 2 &&
         Math.abs(grid.byGenotype['AA'] - 0.25) < 1e-12 &&
         Math.abs(grid.byGenotype['Aa'] - 0.5) < 1e-12 &&
         Math.abs(grid.byGenotype['aa'] - 0.25) < 1e-12 &&
-        Math.abs(grid.byPhenotype['коричневый'] - 0.75) < 1e-12 &&
+        Math.abs(grid.byPhenotype['коричневый'] - 0.25) < 1e-12 &&
+        Math.abs(grid.byPhenotype['палевый'] - 0.5) < 1e-12 &&
         Math.abs(grid.byPhenotype['белый'] - 0.25) < 1e-12;
-      report('T7. pennettGrid(Aa×Aa) 2×2: точные доли', ok ? 'PASS' : 'FAIL',
+      report('T10. pennettGrid(Aa×Aa, окрас) 2×2: точные доли 1:2:1', ok ? 'PASS' : 'FAIL',
         ['byGenotype: ' + JSON.stringify(grid.byGenotype) +
          '\nbyPhenotype: ' + JSON.stringify(grid.byPhenotype)]);
     })();
 
-    /* 8. pennettGrid AaBb×AaBb (2 признака): решётка 4×4, 9:3:3:1 точно. */
+    /* 11. pennettGrid BbCc×BbCc (узор×размер): решётка 4×4, 9:3:3:1 точно. */
     (function () {
-      var grid = G.core.breeder.pennettGrid(AaBb, AaBb, ['color', 'pattern']);
+      var grid = G.core.breeder.pennettGrid(BbCc, BbCc, ['pattern', 'size']);
       var ok = grid.rows === 4 && grid.cols === 4 &&
-        Math.abs(grid.byPhenotype['коричневый|полосатый'] - 9 / 16) < 1e-12 &&
-        Math.abs(grid.byPhenotype['коричневый|однотонный'] - 3 / 16) < 1e-12 &&
-        Math.abs(grid.byPhenotype['белый|полосатый'] - 3 / 16) < 1e-12 &&
-        Math.abs(grid.byPhenotype['белый|однотонный'] - 1 / 16) < 1e-12;
-      report('T8. pennettGrid(AaBb×AaBb) 4×4: точное 9:3:3:1', ok ? 'PASS' : 'FAIL',
+        Math.abs(grid.byPhenotype['полосатый|крупный'] - 9 / 16) < 1e-12 &&
+        Math.abs(grid.byPhenotype['полосатый|мелкий'] - 3 / 16) < 1e-12 &&
+        Math.abs(grid.byPhenotype['однотонный|крупный'] - 3 / 16) < 1e-12 &&
+        Math.abs(grid.byPhenotype['однотонный|мелкий'] - 1 / 16) < 1e-12;
+      report('T11. pennettGrid(BbCc×BbCc, узор×размер) 4×4: точное 9:3:3:1', ok ? 'PASS' : 'FAIL',
         ['byPhenotype: ' + JSON.stringify(grid.byPhenotype)]);
     })();
 
-    /* 9. pennettGrid — чистая функция: не трогает состояние ГСЧ. */
+    /* 12. pennettGrid — чистая функция: не трогает состояние ГСЧ. */
     (function () {
       var r1 = G.core.rng.createRng(777);
-      G.core.breeder.pennettGrid(AaBb, AaBb, ['color', 'pattern']);
+      G.core.breeder.pennettGrid(BbCc, BbCc, ['pattern', 'size']);
       var x1 = r1.randomInt(1, 4);
       var r2 = G.core.rng.createRng(777);
       var x2 = r2.randomInt(1, 4);
       var ok = x1 === x2;
-      report('T9. pennettGrid чистая (не расходует ГСЧ)', ok ? 'PASS' : 'FAIL',
+      report('T12. pennettGrid чистая (не расходует ГСЧ)', ok ? 'PASS' : 'FAIL',
         ['x после вызова решётки = ' + x1 + ', x без вызова = ' + x2 + ', совпадает=' + ok]);
     })();
 

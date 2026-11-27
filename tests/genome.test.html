@@ -21,12 +21,14 @@
   <script src="../js/core/breeder.js"></script>
 </head>
 <body style="padding: 24px;">
-  <h1>Тесты: js/core/genome.js (фаза 1)</h1>
-  <p>Валидация генома, фенотипизация по правилам species.json (полное доминирование)
+  <h1>Тесты: js/core/genome.js (фаза 1 + фаза 7b — неполное доминирование)</h1>
+  <p>Валидация генома, фенотипизация по правилам species.json
+     (узор/размер/уши — полное доминирование; окрас — incomplete, фаза 7b)
      и 10 000 скрещиваний на каждый вероятностный тест через genomeToPhenotype
      (детерминированный ГСЧ mulberry32, фиксированные seed — воспроизводимо).
      «Отклонение» = |наблюдаемая доля − ожидаемая| / ожидаемая × 100.
-     Критерии — genolab_tz.md §7.</p>
+     Критерии — genolab_tz.md §7 (обновлено в 7b): окрас Aa×Aa → 1:2:1 ±5%;
+     Aa×aa → 1:1 палевый:белый ±5%; узор×размер BbCc×BbCc → 9:3:3:1 ±3%.</p>
   <div id="results"><p>Выполняются тесты…</p></div>
   <script>
   (function () {
@@ -49,18 +51,23 @@
     var cfg = G.core.genome.getSpeciesConfig();
     var sp = cfg.species[0];
 
-    /* 1. Конфиг вида: один вид, 4 признака, полное доминирование. */
+    /* 1. Конфиг вида: один вид, 4 признака; фаза 7b: окрас — incomplete
+       (гетерозигота → «палевый»), остальные — полное доминирование. */
     (function () {
+      var colorT = sp.traits.filter(function (t) { return t.id === 'color'; })[0];
+      var others = sp.traits.filter(function (t) { return t.id !== 'color'; });
       var ok = cfg.species.length === 1 &&
         sp.traits.length === 4 &&
-        sp.traits.every(function (t) { return t.model === 'complete-dominance'; }) &&
+        colorT && colorT.model === 'incomplete' &&
+        typeof colorT.values[colorT.dominant + colorT.recessive] === 'string' &&
+        others.every(function (t) { return t.model === 'complete-dominance'; }) &&
         ['color', 'pattern', 'size', 'ears'].every(function (id) {
           return sp.traits.some(function (t) { return t.id === id; });
         });
-      report('T1. Конфиг: 1 вид, 4 признака (окрас/узор/размер/уши), полное доминирование',
+      report('T1. Конфиг: 1 вид, 4 признака; окрас — incomplete (фаза 7b), остальные — полное',
         ok ? 'PASS' : 'FAIL',
         ['вид: ' + sp.id + ' («' + sp.name + '»), признаков: ' + sp.traits.length +
-         ' (' + sp.traits.map(function (t) { return t.id + ' ' + t.dominant + '/' + t.recessive; }).join(', ') + ')']);
+         ' (' + sp.traits.map(function (t) { return t.id + ' ' + t.dominant + '/' + t.recessive + ' [' + t.model + ']'; }).join(', ') + ')']);
     })();
 
     /* 2. Валидация: корректный геном. */
@@ -82,11 +89,16 @@
          '\nнеизвестный вид: ' + JSON.stringify(bad3.errors)]);
     })();
 
-    /* 4. Фенотипизация: AA→дом, Aa→дом, aA→дом, aa→рец — по всем 4 признакам. */
+    /* 4. Фенотипизация (24 случая): 3 признака полного доминирования —
+       AA/Aa/aA→дом, aa→рец (12); окрас (incomplete, фаза 7b) —
+       AA→коричневый, Aa/aA→палевый, aa→белый × 3 фона остальных признаков
+       (12). Итого 12 + 12 = 24. */
     (function () {
       var lines = [];
       var ok = true;
-      sp.traits.forEach(function (t, i) {
+      var completeTraits = sp.traits.filter(function (t) { return t.id !== 'color'; });
+      completeTraits.forEach(function (t) {
+        var i = sp.traits.indexOf(t);
         var cases = [[t.dominant, t.dominant], [t.dominant, t.recessive], [t.recessive, t.dominant], [t.recessive, t.recessive]];
         var expectedVals = [t.values[t.dominant], t.values[t.dominant], t.values[t.dominant], t.values[t.recessive]];
         cases.forEach(function (c, j) {
@@ -100,7 +112,35 @@
           lines.push(t.id + ' [' + c[0] + c[1] + '] → ' + got + (pass ? '' : '  (ожидалось ' + expectedVals[j] + ')'));
         });
       });
-      report('T4. genomeToPhenotype: полное доминирование по 4 признакам (16 случаев)', ok ? 'PASS' : 'FAIL', lines);
+      var colorT = sp.traits[0];
+      var colorCases = [[colorT.dominant, colorT.dominant], [colorT.dominant, colorT.recessive],
+                        [colorT.recessive, colorT.dominant], [colorT.recessive, colorT.recessive]];
+      var colorExpected = [colorT.values[colorT.dominant], colorT.values['Aa'],
+                           colorT.values['Aa'], colorT.values[colorT.recessive]];
+      /* Три фона остальных признаков: все доминантные, все рецессивные,
+         смешанный (узор/размер доминантные, уши рецессивные). */
+      var backgrounds = [
+        function (k) { return [sp.traits[k].dominant, sp.traits[k].dominant]; },
+        function (k) { return [sp.traits[k].recessive, sp.traits[k].recessive]; },
+        function (k) { return (sp.traits[k].id === 'ears') ? [sp.traits[k].recessive, sp.traits[k].recessive]
+                                                          : [sp.traits[k].dominant, sp.traits[k].dominant]; }
+      ];
+      var bgNames = ['фон: доминанты', 'фон: рецессивы', 'фон: смешанный'];
+      backgrounds.forEach(function (bg, bi) {
+        colorCases.forEach(function (c, j) {
+          var pairs = sp.traits.map(function (_, k) {
+            return k === 0 ? [c[0], c[1]] : bg(k);
+          });
+          var ph = G.core.genome.genomeToPhenotype(mk(pairs));
+          var got = ph.color;
+          var pass = got === colorExpected[j];
+          if (!pass) ok = false;
+          lines.push('color [' + c[0] + c[1] + '] (' + bgNames[bi] + ') → ' + got +
+            (pass ? '' : '  (ожидалось ' + colorExpected[j] + ')'));
+        });
+      });
+      report('T4. genomeToPhenotype: 3 полных признака (12) + окрас incomplete × 3 фона (12) = 24 случая',
+        ok ? 'PASS' : 'FAIL', lines);
     })();
 
     /* 5. Фенотипизация невалидного генома → исключение. */
@@ -145,20 +185,23 @@
     }
     var Aa = mk([['A', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
     var aa = mk([['a', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]);
-    var AaBb = mk([['A', 'a'], ['B', 'b'], ['C', 'C'], ['D', 'D']]);
-    distTest('T6. Aa×Aa → 3:1 (±5%), фенотип по окрасу', 404, Aa, Aa,
+    var BbCc = mk([['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'D']]);
+    /* Фаза 7b: окрас — неполное доминирование (Aa → «палевый»). */
+    distTest('T6. Aa×Aa → 1:2:1 (±5%), фенотип по окрасу (неполное, 7b)', 404, Aa, Aa,
       function (ch) { return G.core.genome.genomeToPhenotype(ch).color; },
-      { 'коричневый': 0.75, 'белый': 0.25 }, 5);
-    distTest('T7. Aa×aa → 1:1 (±5%), фенотип по окрасу', 808, Aa, aa,
+      { 'коричневый': 0.25, 'палевый': 0.5, 'белый': 0.25 }, 5);
+    distTest('T7. Aa×aa → 1:1 (±5%), палевый:белый (неполное, 7b)', 808, Aa, aa,
       function (ch) { return G.core.genome.genomeToPhenotype(ch).color; },
-      { 'коричневый': 0.5, 'белый': 0.5 }, 5);
-    distTest('T8. AaBb×AaBb → 9:3:3:1 (±3%), фенотип окрас×узор', 333, AaBb, AaBb,
+      { 'палевый': 0.5, 'белый': 0.5 }, 5);
+    /* 7b: 9:3:3:1 переведено на узор×размер (полное доминирование); окрас
+       в дигибриде даёт 3:6:3:1:3:6:3:1 и гейт 9:3:3:1 на нём не верен. */
+    distTest('T8. BbCc×BbCc → 9:3:3:1 (±3%), фенотип узор×размер', 333, BbCc, BbCc,
       function (ch) {
         var ph = G.core.genome.genomeToPhenotype(ch);
-        return ph.color + ' + ' + ph.pattern;
+        return ph.pattern + ' + ' + ph.size;
       },
-      { 'коричневый + полосатый': 9 / 16, 'коричневый + однотонный': 3 / 16,
-        'белый + полосатый': 3 / 16, 'белый + однотонный': 1 / 16 }, 3);
+      { 'полосатый + крупный': 9 / 16, 'полосатый + мелкий': 3 / 16,
+        'однотонный + крупный': 3 / 16, 'однотонный + мелкий': 1 / 16 }, 3);
 
     /* 9. Вшитый конфиг и файл species.json совпадают (только по http://;
        по file:// fetch локального JSON блокируется CORS — SKIP). */

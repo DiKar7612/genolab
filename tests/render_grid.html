@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ГеноЛаб — фаза 2: стенд рендера (все комбинации фенотипов)</title>
+  <title>ГеноЛаб — фаза 2+7b: стенд рендера (все комбинации фенотипов)</title>
   <link rel="stylesheet" href="../css/base.css">
   <link rel="stylesheet" href="../css/components.css">
   <style>
@@ -21,15 +21,16 @@
     .stand h2 { color: var(--color-gold); font-size: 1.05rem; margin: 0 0 10px; }
     .hint { color: var(--color-gray); font-size: var(--font-size-sm); margin: 0; }
 
-    /* Сетка ВСЕХ комбинаций: 4 колонки (цвет × узор), 4 ряда (размер × уши).
-       Ниже 640px — 2 колонки, чтобы не вылетать за 360px. */
+    /* Сетка ВСЕХ комбинаций: 6 колонок (3 окраса × 2 узора),
+       4 ряда (2 размера × 2 формы ушей) = 24 (фаза 7b: окрас — 3 фенотипа).
+       Ниже 640px — 3 колонки, чтобы не вылетать за 360px. */
     .combos {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 10px;
     }
     @media (max-width: 639px) {
-      .combos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .combos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     .combo {
       display: flex;
@@ -98,13 +99,15 @@
 <body>
   <div class="stand">
     <header>
-      <h1>Фаза 2 — стенд рендера</h1>
-      <p class="hint">Все комбинации фенотипов вида «Голо»: 4 признака × 2 значения = 16.
-      Колонки — окрас × узор, ряды — размер × уши. Рендер: js/render/creature.js.</p>
+      <h1>Фаза 2 (+7b) — стенд рендера</h1>
+      <p class="hint">Все комбинации фенотипов вида «Голо»: 3 окраса × 2 узора ×
+      2 размера × 2 формы ушей = 24 (фаза 7b: окрас — неполное доминирование,
+      гетерозигота Aa → «палевый»). Колонки — окрас × узор, ряды — размер × уши.
+      Рендер: js/render/creature.js.</p>
     </header>
 
     <section aria-label="Все комбинации">
-      <h2>Все комбинации фенотипов (16)</h2>
+      <h2>Все комбинации фенотипов (24)</h2>
       <div class="combos" id="combos"></div>
     </section>
 
@@ -154,12 +157,19 @@
       var creature = G.render.creature;
 
       var sp = genome.getSpecies('golo');
-      /* Доминантный аллель по признаку: гомозиготная пара [dom, dom],
-       * рецессивный: [rec, rec] — фенотип однозначен. */
+      /* Гомозиготная пара под фенотип: доминантный — [dom, dom],
+       * рецессивный — [rec, rec]; фаза 7b: промежуточный (incomplete)
+       * — гетерозигота [dom, rec]. */
       function pairsFor(phen) {
         return sp.traits.map(function (t) {
-          var dom = phen[t.id] === t.values[t.dominant];
-          return dom ? [t.dominant, t.dominant] : [t.recessive, t.recessive];
+          if (phen[t.id] === t.values[t.dominant]) {
+            return [t.dominant, t.dominant];
+          }
+          if (t.model === 'incomplete' &&
+              phen[t.id] === t.values[t.dominant + t.recessive]) {
+            return [t.dominant, t.recessive];
+          }
+          return [t.recessive, t.recessive];
         });
       }
       function make(phen) {
@@ -167,13 +177,14 @@
         return { phen: genome.genomeToPhenotype(gm), geno: genome.genotypeString(gm) };
       }
 
-      /* ---- Сетка 16 комбинаций ----
-         Колонки (4): цвет × узор. Ряды (4): размер × уши. */
+      /* ---- Сетка 24 комбинаций (фаза 7b: 3 окраса) ----
+         Колонки (6): окрас × узор. Ряды (4): размер × уши. */
+      var COLORS = ['коричневый', 'палевый', 'белый'];
       var comboList = [];
       for (var r = 0; r < 4; r++) {
-        for (var c = 0; c < 4; c++) {
+        for (var c = 0; c < 6; c++) {
           comboList.push({
-            color: c < 2 ? 'коричневый' : 'белый',
+            color: COLORS[Math.floor(c / 2)],
             pattern: c % 2 === 0 ? 'полосатый' : 'однотонный',
             size: r < 2 ? 'крупный' : 'мелкий',
             ears: r % 2 === 0 ? 'острые' : 'круглые'
@@ -225,12 +236,14 @@
       combosEl.appendChild(frag);
       descBody.appendChild(descFrag);
 
-      /* ---- Ряд 64 px: четыре «угловых» комбинации ---- */
+      /* ---- Ряд 64 px: «угловые» комбинации + палевый (фаза 7b) ---- */
       var extremes = [
         { color: 'коричневый', pattern: 'полосатый', size: 'крупный', ears: 'острые' },
+        { color: 'палевый', pattern: 'полосатый', size: 'крупный', ears: 'острые' },
+        { color: 'белый', pattern: 'полосатый', size: 'крупный', ears: 'острые' },
         { color: 'коричневый', pattern: 'однотонный', size: 'мелкий', ears: 'круглые' },
-        { color: 'белый', pattern: 'полосатый', size: 'мелкий', ears: 'острые' },
-        { color: 'белый', pattern: 'однотонный', size: 'крупный', ears: 'круглые' }
+        { color: 'палевый', pattern: 'однотонный', size: 'мелкий', ears: 'круглые' },
+        { color: 'белый', pattern: 'однотонный', size: 'мелкий', ears: 'круглые' }
       ];
       var row64 = document.getElementById('row64');
       var f64 = document.createDocumentFragment();
@@ -269,7 +282,6 @@
         fig.innerHTML = creature.renderCreature(stageMade.phen, 120, stName);
         var cap = document.createElement('figcaption');
         cap.textContent = stName + ' · ' + stageMade.geno;
-        fig.appendChild(cap);
         fStages.appendChild(fig);
       });
       stagesEl.appendChild(fStages);
@@ -282,15 +294,16 @@
         if (!ok) fails += 1;
       }
 
-      /* T1. 16 уникальных SVG. */
-      check('T1. 16 уникальных SVG-рендеров',
-        new Set(svgs).size === 16, 'уникальных: ' + new Set(svgs).size);
+      /* T1. 24 уникальных SVG. */
+      check('T1. 24 уникальных SVG-рендера',
+        new Set(svgs).size === 24, 'уникальных: ' + new Set(svgs).size);
 
-      /* T2. 16 уникальных описателей. */
-      check('T2. 16 уникальных describePhenotypeRender',
-        new Set(describes).size === 16, 'уникальных: ' + new Set(describes).size);
+      /* T2. 24 уникальных описателя. */
+      check('T2. 24 уникальных describePhenotypeRender',
+        new Set(describes).size === 24, 'уникальных: ' + new Set(describes).size);
 
       /* T3. Модули/цвета/масштаб описателя совпадают с фенотипом. */
+      var BODY_COLORS = { 'коричневый': '#b06a3f', 'палевый': '#c98a5b', 'белый': '#d9c2a3' };
       var t3bad = 0;
       comboList.forEach(function (combo) {
         var desc = creature.describePhenotypeRender(combo);
@@ -298,13 +311,13 @@
         var okM = (combo.ears === 'острые') ? m.indexOf('ears-sharp') >= 0 : m.indexOf('ears-round') >= 0;
         var okP = (combo.pattern === 'полосатый') ? m.indexOf('pattern-stripes') >= 0
           : m.indexOf('pattern-stripes') < 0;
-        var okBody = desc.colors.body === (combo.color === 'коричневый' ? '#b06a3f' : '#d9c2a3');
+        var okBody = desc.colors.body === BODY_COLORS[combo.color];
         var okScale = desc.scale === (combo.size === 'крупный' ? 1.0 : 0.66);
         var okCore = m.indexOf('tail') >= 0 && m.indexOf('body-base') >= 0 && m.indexOf('body-face') >= 0;
         if (!(okM && okP && okBody && okScale && okCore)) t3bad += 1;
       });
       check('T3. модули/заливка/масштаб описателя совпадают с фенотипом',
-        t3bad === 0, 'несовпадений: ' + t3bad + ' из 16');
+        t3bad === 0, 'несовпадений: ' + t3bad + ' из 24');
 
       /* T4. SVG: viewBox, role, ограничения 64..320, clamp. */
       var ph = comboList[0];
@@ -314,7 +327,7 @@
       var okViewBox = svgs.every(function (s) {
         return s.indexOf('viewBox="0 0 100 100"') >= 0 && s.indexOf('role="img"') >= 0;
       });
-      check('T4a. viewBox и role="img" у всех 16', okViewBox);
+      check('T4a. viewBox и role="img" у всех 24', okViewBox);
       check('T4b. clamp: 10px→64, 1000px→320, умолчание→160',
         sSmall.indexOf('width="64"') >= 0 && sHuge.indexOf('width="320"') >= 0 &&
         sDef.indexOf('width="160"') >= 0);
@@ -375,6 +388,27 @@
         m0 === '#b06a3f' && m1 === '#cfc6b8' &&
         /^#[0-9a-f]{6}$/i.test(mMid) && mMid !== m0 && mMid !== m1,
         't=0: ' + m0 + ', t=0.65: ' + mMid + ', t=1: ' + m1);
+
+      /* T10. Палевый (фаза 7b): гетерозигота Aa — промежуточный фенотип,
+         рендер отличается от обоих гомозигот. */
+      (function () {
+        var hetero = genome.genomeToPhenotype(
+          genome.createGenome('golo', [['A', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]));
+        var homoDom = genome.genomeToPhenotype(
+          genome.createGenome('golo', [['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']]));
+        var homoRec = genome.genomeToPhenotype(
+          genome.createGenome('golo', [['a', 'a'], ['B', 'B'], ['C', 'C'], ['D', 'D']]));
+        var rH = creature.renderCreature(hetero, 120);
+        var rD = creature.renderCreature(homoDom, 120);
+        var rR = creature.renderCreature(homoRec, 120);
+        var ok = hetero.color === 'палевый' && homoDom.color === 'коричневый' &&
+          homoRec.color === 'белый' &&
+          new Set([rH, rD, rR]).size === 3 &&
+          creature.describePhenotypeRender(hetero).colors.body === '#c98a5b';
+        check('T10. палевый: Aa → «палевый», рендер между AA и aa, тело #c98a5b',
+          ok, 'Aa=' + hetero.color + ', AA=' + homoDom.color + ', aa=' + homoRec.color +
+          ', уникальных рендеров: ' + new Set([rH, rD, rR]).size);
+      })();
 
       /* ---- Вывод ---- */
       document.getElementById('results').textContent = lines.join('\n');

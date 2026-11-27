@@ -8,10 +8,10 @@
         {
           "id": "color",
           "name": "Окрас",
-          "model": "complete-dominance",
+          "model": "incomplete",
           "dominant": "A",
           "recessive": "a",
-          "values": { "A": "коричневый", "a": "белый" }
+          "values": { "A": "коричневый", "Aa": "палевый", "a": "белый" }
         },
         {
           "id": "pattern",

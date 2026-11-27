@@ -143,13 +143,16 @@
       /* T6 — listOrders: match по фенотипам вольера */
       store.reset();
       try {
-        /* Стартовые: c1/c2 Aa Bb Cc Dd (коричневый полосатый крупный острые),
-         * c3 aa bb cc dd (белый однотонный мелкий круглые). */
+        /* Стартовые (фаза 7b: окрас — неполное доминирование, Aa → палевый):
+         * c1/c2 Aa Bb Cc Dd (палевый полосатый крупный острые),
+         * c3 aa bb cc dd (белый однотонный мелкий круглые).
+         * o1 (коричневый) в стартовом вольере не совпадает — коричневый
+         * теперь только гомозигота AA, получить можно скрещиванием. */
         var list = engine.listOrders();
         var byId = {};
         list.forEach(function (o) { byId[o.id] = o; });
         var ok = list.length === 5 &&
-          byId.o1.match === 'c1' &&
+          byId.o1.match === null &&
           byId.o2.match === 'c1' &&
           byId.o4.match === 'c1' &&
           byId.o3.match === 'c3' &&

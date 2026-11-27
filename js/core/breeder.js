@@ -6,6 +6,11 @@
  * Математика скрещивания зафиксирована фазой 1 (RULES.md §6):
  * у каждого потомка — по одному аллелю от каждого родителя,
  * выбор равновероятный (честная решётка Пеннета).
+ *
+ * РАЗМОРОЗКА (фаза 7b, 2026-11-27): в pennettGrid ключ фенотипа клетки
+ * считался с хардкодом полного доминирования; теперь — с учётом model
+ * признака (incomplete → гетерозига → t.values[dom+rec]). cross() и
+ * gametes() не тронуты. Запись в LOG_1.1.md.
  */
 (function (global) {
   'use strict';
@@ -110,9 +115,14 @@
             return (x === t.dominant ? 0 : 1) - (y === t.dominant ? 0 : 1);
           });
           genoKeys.push(sorted.join(''));
-          phenoKeys.push((a === t.dominant || b === t.dominant)
-            ? t.values[t.dominant]
-            : t.values[t.recessive]);
+          /* Фаза 7b: incomplete — гетерозига даёт промежуточный
+           * фенотип; полное доминирование — как было. */
+          phenoKeys.push(
+            (t.model === 'incomplete' && a !== b)
+              ? t.values[t.dominant + t.recessive]
+              : (a === t.dominant || b === t.dominant)
+                ? t.values[t.dominant]
+                : t.values[t.recessive]);
         });
         var gk = genoKeys.join('|');
         var pk = phenoKeys.join('|');

@@ -147,6 +147,11 @@
       html += '<label class="pred__target-item">' + esc(t.name) + ': ' +
         '<select class="pred__target" data-trait="' + esc(t.id) + '">' +
         '<option value="' + esc(t.values[t.dominant]) + '">' + esc(t.values[t.dominant]) + '</option>' +
+        /* Фаза 7b: incomplete — промежуточный фенотип гетерозиготы. */
+        (t.model === 'incomplete'
+          ? '<option value="' + esc(t.values[t.dominant + t.recessive]) + '">' +
+            esc(t.values[t.dominant + t.recessive]) + '</option>'
+          : '') +
         '<option value="' + esc(t.values[t.recessive]) + '">' + esc(t.values[t.recessive]) + '</option>' +
         '</select></label>';
     });

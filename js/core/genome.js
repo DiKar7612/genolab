@@ -1,10 +1,17 @@
 /* ГеноЛаб — js/core/genome.js — модель генома (фаза 1).
  *
+ * РАЗМОРОЗКА (фаза 7b, 2026-11-27): genomeToPhenotype и isSpeciesConfig
+ * учитывают model "incomplete" (неполное доминирование, признак color —
+ * гетерозигота → t.values[dom+rec]). Минимальная правка по ТЗ §9 7b:
+ * validateGenome, createGenome, genotypeString, loadSpecies, порядок
+ * экспортов — не тронуты. Запись в LOG_1.1.md.
+ *
  * Двойной режим загрузки: экспорты — window.GenoLab.core.genome
  * (ESM-экспорты не используются — решение фазы 0, LOG.md).
  *
- * Конфиг вида: источник — js/data/species.json (один вид, 4 признака,
- * полное доминирование). По file:// браузер не читает локальный JSON
+ * Конфиг вида: источник — js/data/species.json (один вид, 4 признака;
+ * цвет — incomplete с фазы 7b, остальные — полное доминирование).
+ * По file:// браузер не читает локальный JSON
  * без сервера (CORS), поэтому в этом файле есть вшитая точная копия
  * SPECIES — она используется по умолчанию. loadSpecies(url) (по
  * http://) подменяет вшитый конфиг файлом после валидации формы.
@@ -24,8 +31,10 @@
         id: 'golo',
         name: 'Голо',
         traits: [
-          { id: 'color',   name: 'Окрас',       model: 'complete-dominance',
-            dominant: 'A', recessive: 'a', values: { A: 'коричневый', a: 'белый' } },
+          /* Фаза 7b: неполное доминирование — Aa → т.values['Aa']. */
+          { id: 'color',   name: 'Окрас',       model: 'incomplete',
+            dominant: 'A', recessive: 'a',
+            values: { A: 'коричневый', Aa: 'палевый', a: 'белый' } },
           { id: 'pattern', name: 'Узор',        model: 'complete-dominance',
             dominant: 'B', recessive: 'b', values: { B: 'полосатый', b: 'однотонный' } },
           { id: 'size',    name: 'Размер',      model: 'complete-dominance',
@@ -58,12 +67,18 @@
     return v.species.every(function (s) {
       if (!s || typeof s.id !== 'string' || !Array.isArray(s.traits) || s.traits.length === 0) return false;
       return s.traits.every(function (t) {
-        return t && typeof t.id === 'string' &&
-          t.model === 'complete-dominance' &&
+        var okModel = t && typeof t.id === 'string' &&
+          (t.model === 'complete-dominance' || t.model === 'incomplete') &&
           typeof t.dominant === 'string' && t.dominant.length === 1 &&
           typeof t.recessive === 'string' && t.recessive.length === 1 &&
           t.values && typeof t.values[t.dominant] === 'string' &&
           typeof t.values[t.recessive] === 'string';
+        /* Фаза 7b: у incomplete обязателен фенотип гетерозиготы. */
+        if (okModel && t.model === 'incomplete' &&
+            typeof t.values[t.dominant + t.recessive] !== 'string') {
+          return false;
+        }
+        return okModel;
       });
     });
   }
@@ -173,8 +188,10 @@
   }
 
   /**
-   * Фенотип по правилам species.json (полное доминирование:
-   * доминантный аллель хотя бы один — фенотип доминантный).
+   * Фенотип по правилам species.json.
+   * model "complete-dominance": доминантный аллель хотя бы один —
+   * фенотип доминантный. model "incomplete" (фаза 7b): гетерозигота —
+   * промежуточный фенотип t.values[dominant+recessive].
    * @returns {Object.<string, string>} признак → значение фенотипа
    * @throws Error при невалидном геноме
    */
@@ -185,6 +202,10 @@
     var ph = {};
     sp.traits.forEach(function (t, i) {
       var p = genome.pairs[i];
+      if (t.model === 'incomplete' && p[0] !== p[1]) {
+        ph[t.id] = t.values[t.dominant + t.recessive];
+        return;
+      }
       ph[t.id] = (p[0] === t.dominant || p[1] === t.dominant)
         ? t.values[t.dominant]
         : t.values[t.recessive];
