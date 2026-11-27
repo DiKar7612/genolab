@@ -496,6 +496,12 @@
   white-space: nowrap;
 }
 
+/* Фаза 7e: горизонтальный скролл мини-решётки на узких экранах */
+.codex-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .codex__total {
   margin-top: 24px;
   font-weight: 600;

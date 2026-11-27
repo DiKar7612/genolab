@@ -9,6 +9,32 @@
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
+  <!--
+    modulepreload: граф модулей обнаруживается за один проход
+    (без дополнительной волны запросов после main.js) — LCP быстрее.
+    По file:// preload-запросы просто не выполнятся (безопасно).
+  -->
+  <link rel="modulepreload" href="js/core/rng.js">
+  <link rel="modulepreload" href="js/core/genome.js">
+  <link rel="modulepreload" href="js/core/breeder.js">
+  <link rel="modulepreload" href="js/core/economy.js">
+  <link rel="modulepreload" href="js/core/mutation.js">
+  <link rel="modulepreload" href="js/state/store.js">
+  <link rel="modulepreload" href="js/state/save.js">
+  <link rel="modulepreload" href="js/render/creature.js">
+  <link rel="modulepreload" href="js/render/pennett.js">
+  <link rel="modulepreload" href="js/quests/questEngine.js">
+  <link rel="modulepreload" href="js/quests/tutorial.js">
+  <link rel="modulepreload" href="js/ui/router.js">
+  <link rel="modulepreload" href="js/ui/toast.js">
+  <link rel="modulepreload" href="js/ui/sfx.js">
+  <link rel="modulepreload" href="js/ui/screens/enclosure.js">
+  <link rel="modulepreload" href="js/ui/screens/breed.js">
+  <link rel="modulepreload" href="js/ui/screens/creature.js">
+  <link rel="modulepreload" href="js/ui/screens/predictor.js">
+  <link rel="modulepreload" href="js/ui/screens/orders.js">
+  <link rel="modulepreload" href="js/ui/screens/codex.js">
+  <link rel="modulepreload" href="js/main.js">
   <script>
     /*
      * Двойной режим загрузки JS:
@@ -65,7 +91,6 @@
       loadNext(0);
     };
   </script>
-  <script type="module" src="js/main.js" onerror="window.__genolabClassicLoad()"></script>
 </head>
 <body>
 
@@ -95,5 +120,11 @@
 
   <footer class="statusbar">ГеноЛаб — генетический симулятор: скрещивание, заказы, квесты.</footer>
 
+  <!--
+    Модуль в конце body (фаза 7e, Lighthouse-оптимизация):
+    CSS получает соединения до запросов JS — FCP ~1.5s вместо ~4.3s
+    при 4x-троттлинге и HTTP/1.0 (no keep-alive).
+  -->
+  <script type="module" src="js/main.js" onerror="window.__genolabClassicLoad()"></script>
 </body>
 </html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тесты: второй вид Нокт (фаза 7d, гейт)</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <style>
+    #results table { border-collapse: collapse; margin: 12px 0; }
+    #results th, #results td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+    #results .pass { color: #1a7f37; font-weight: bold; }
+    #results .fail { color: #c0392b; font-weight: bold; }
+    #results .skip { color: #b07d1a; font-weight: bold; }
+    #results pre { background: #f4f4f4; padding: 10px; border-left: 4px solid #666;
+      white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; }
+    #verdict { font-size: 18px; }
+  </style>
+  <!-- Классические скрипты (не ESM): страница открывается с file://. -->
+  <script src="../js/core/rng.js"></script>
+  <script src="../js/core/genome.js"></script>
+  <script src="../js/core/breeder.js"></script>
+</head>
+<body style="padding: 24px;">
+  <h1>Тесты: второй вид «Нокт» (фаза 7d)</h1>
+  <p>
+    T1 — identity: js/data/species.json == вшитой копии SPECIES в genome.js
+    (по http://; с file:// — SKIP, как в tests/config_test.html).
+    T2 — конфиг нового вида валиден (id/name/признак glow E/e/значения/
+    lifeStages). T3 — фенотипизация по всем признакам вида (EE/Ee/ee) и
+    расщепление Ee×Ee = 3:1 (±5%, 10 000 потомков). T4 — guard
+    межвидового скрещивания: cross/pennettGrid с разными видами — ошибка.
+  </p>
+  <div id="results"><p>Выполняются тесты…</p></div>
+  <script>
+  (function () {
+    'use strict';
+
+    var out = document.getElementById('results');
+    if (!window.GenoLab || !window.GenoLab.core || !window.GenoLab.core.genome ||
+        !window.GenoLab.core.breeder || !window.GenoLab.core.rng) {
+      out.innerHTML = '<p class="fail">FAIL: модули GenoLab (rng/genome/breeder) не загрузились</p>';
+      return;
+    }
+    var G = window.GenoLab;
+    var results = [];
+
+    function report(name, status, lines) {
+      results.push({ name: name, status: status, lines: lines });
+    }
+
+    /* T2. Конфиг нового вида валиден (структура + содержимое). */
+    (function () {
+      var lines = [];
+      var ok = true;
+      var cfg = G.core.genome.getSpeciesConfig();
+      if (!cfg || !cfg.version) {
+        report('T2. Конфиг вида Нокт валиден', 'FAIL', ['нет version в getSpeciesConfig()']);
+        return;
+      }
+      var sp = G.core.genome.getSpecies('noct');
+      if (!sp) { ok = false; lines.push('getSpecies("noct") — null (вид не найден)'); }
+      else {
+        lines.push('id=' + sp.id + ', name=' + sp.name + ', признаков: ' + sp.traits.length);
+        var t = sp.traits[0];
+        var fieldsOk = t && t.id === 'glow' && t.model === 'complete-dominance' &&
+          t.dominant === 'E' && t.recessive === 'e';
+        var valuesOk = t && t.values && t.values.E === 'светящееся' && t.values.e === 'не светящееся';
+        if (!fieldsOk) { ok = false; lines.push('признак glow: id/model/аллели не совпадают'); }
+        if (!valuesOk) { ok = false; lines.push('значения фенотипов glow не совпадают'); }
+        if (!sp.lifeStages || !sp.lifeStages.baby || !sp.lifeStages.adult || !sp.lifeStages.old) {
+          ok = false; lines.push('lifeStages неполные');
+        }
+      }
+      var golo = G.core.genome.getSpecies('golo');
+      if (!golo || golo.traits.length !== 4) {
+        ok = false; lines.push('вид golo отсутствует или признаков != 4');
+      } else {
+        lines.push('вид golo: 4 признака — нетронуто');
+      }
+      report('T2. Конфиг вида Нокт валиден', ok ? 'PASS' : 'FAIL', lines);
+    })();
+
+    /* T3. Фенотипизация по всем признакам + расщепление Ee×Ee = 3:1. */
+    (function () {
+      var lines = [];
+      var ok = true;
+      function noct(pairs) { return G.core.genome.createGenome('noct', pairs); }
+      var cases = [
+        [['E', 'E'], 'светящееся'],
+        [['E', 'e'], 'светящееся'],
+        [['e', 'e'], 'не светящееся']
+      ];
+      for (var i = 0; i < cases.length; i++) {
+        var g = noct([cases[i][0]]);
+        var v = G.core.genome.validateGenome(g);
+        if (!v.ok) { ok = false; lines.push('validateGenome ' + cases[i][0].join('') + ': ' + v.errors.join('; ')); }
+        var ph = G.core.genome.genomeToPhenotype(g);
+        if (ph.glow !== cases[i][1]) {
+          ok = false; lines.push(cases[i][0].join('') + ' → «' + ph.glow + '», ожидается «' + cases[i][1] + '»');
+        } else {
+          lines.push(cases[i][0].join('') + ' → «' + ph.glow + '»');
+        }
+      }
+      /* Ee × Ee → 3:1 (полное доминирование), 10 000 потомков, seed 2026011. */
+      var rng = G.core.rng.createRng(2026011);
+      var a = noct([['E', 'e']]), b = noct([['E', 'e']]);
+      var glow = 0, dark = 0, n = 10000;
+      for (var k = 0; k < n; k++) {
+        var kids = G.core.breeder.cross(a, b, rng);
+        for (var j = 0; j < kids.length; j++) {
+          if (G.core.genome.genomeToPhenotype(kids[j]).glow === 'светящееся') glow++; else dark++;
+        }
+      }
+      var total = glow + dark;
+      var expGlow = total * 0.75, expDark = total * 0.25;
+      var devGlow = Math.abs(glow - expGlow) / expGlow * 100;
+      var devDark = Math.abs(dark - expDark) / expDark * 100;
+      lines.push('Ee×Ee: ' + total + ' потомков, светящихся ' + glow + ' (' +
+        glow / total * 100 + '%), не светящихся ' + dark + ' (' + dark / total * 100 +
+        '%); отклонение ' + devGlow.toFixed(1) + '%/' + devDark.toFixed(1) + '% (допуск ±5%)');
+      if (devGlow > 5 || devDark > 5) ok = false;
+      report('T3. Фенотипизация + расщепление Ee×Ee 3:1', ok ? 'PASS' : 'FAIL', lines);
+    })();
+
+    /* T4. Guard межвидового скрещивания (движок + решётка). */
+    (function () {
+      var lines = [];
+      var ok = true;
+      var g = G.core.genome.createGenome('golo', [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd']]);
+      var n = G.core.genome.createGenome('noct', [['E', 'e']]);
+      function expectThrow(fn, label) {
+        try {
+          fn();
+          ok = false;
+          lines.push(label + ' — ошибка НЕ брошена (FAIL)');
+        } catch (e) {
+          lines.push(label + ' → ' + e.constructor.name + ': «' + e.message + '»');
+        }
+      }
+      expectThrow(function () { G.core.breeder.cross(g, n); }, 'cross(golo, noct)');
+      expectThrow(function () { G.core.breeder.cross(n, g); }, 'cross(noct, golo)');
+      expectThrow(function () { G.core.breeder.pennettGrid(g, n, ['color', 'pattern']); }, 'pennettGrid(golo, noct, [color,pattern])');
+      /* Чистые пары продолжают работать. */
+      var same = G.core.breeder.cross(n, n);
+      if (same.length < 1 || same.length > 4) {
+        ok = false; lines.push('cross(noct, noct): потомков ' + same.length + ' (ожидалось 1–4)');
+      } else {
+        lines.push('cross(noct, noct): ' + same.length + ' потомка(ов) — работает');
+      }
+      report('T4. Guard межвидового скрещивания', ok ? 'PASS' : 'FAIL', lines);
+    })();
+
+    /* T1. Identity: файл species.json == вшитая SPECIES (по http://). */
+    fetch('../js/data/species.json', { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (file) {
+        var cfg = G.core.genome.getSpeciesConfig();
+        var same = JSON.stringify(file) === JSON.stringify(cfg);
+        report('T1. Identity: species.json == вшитая SPECIES', same ? 'PASS' : 'FAIL',
+          same ? ['файл и вшитая копия идентичны (JSON)'] : ['файл отличается от вшитой копии']);
+        render();
+      })
+      .catch(function (e) {
+        report('T1. Identity: species.json == вшитая SPECIES', 'SKIP',
+          ['fetch не доступен на странице (' + e.message +
+           ' — вероятно file://; identity-тест выполняется по http://)']);
+        render();
+      });
+
+    function render() {
+      var nPass = 0, nFail = 0, nSkip = 0;
+      var html = '<table><tr><th>#</th><th>Тест</th><th>Статус</th></tr>';
+      for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        if (r.status === 'PASS') nPass++;
+        else if (r.status === 'FAIL') nFail++;
+        else nSkip++;
+        html += '<tr><td>' + (i + 1) + '</td><td>' + r.name + '</td>' +
+          '<td class="' + r.status.toLowerCase() + '">' + r.status + '</td></tr>' +
+          '<tr><td></td><td colspan="2"><pre>' + r.lines.join('\n') + '</pre></td></tr>';
+      }
+      html += '</table>';
+      html += '<p id="verdict">ОБЩИЙ ВЕРДИКТ: <span class="' + (nFail ? 'fail' : 'pass') + '">' +
+        (nFail ? 'FAIL' : 'PASS') + '</span> (' + nPass + ' PASS' +
+        (nFail ? ', ' + nFail + ' FAIL' : '') +
+        (nSkip ? ', SKIP ' + nSkip : '') + ')</p>';
+      out.innerHTML = html;
+    }
+  })();
+  </script>
+</body>
+</html>
