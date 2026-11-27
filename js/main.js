@@ -36,6 +36,7 @@
       './core/genome.js',
       './core/breeder.js',
       './core/economy.js',
+      './core/mutation.js',
       './state/store.js',
       './state/save.js',
       './render/creature.js',

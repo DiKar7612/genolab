@@ -29,7 +29,7 @@
     version: 1,
     slots: { base: 12, max: 24 },
     prices: { sellCreature: 20, buySlot: 100, sequence: 30 },
-    mutation: { enabled: false, chance: 0.03 }
+    mutation: { enabled: true, chance: 0.03 }
   };
 
   /* Актуальный конфиг (loadConfig может заменить его файлом). */
@@ -96,10 +96,23 @@
     return p;
   }
 
+  /**
+   * Параметры мутаций (фаза 7a): {enabled: boolean, chance: number 0..1}.
+   * Читает актуальный конфиг (вшитый или загруженный файлом).
+   */
+  function getMutation() {
+    var m = config.mutation || {};
+    return {
+      enabled: m.enabled === true,
+      chance: (typeof m.chance === 'number' && isFinite(m.chance)) ? m.chance : 0.03
+    };
+  }
+
   core.economy = {
     /* ===== Экспорты: window.GenoLab.core.economy ===== */
     CONFIG: CONFIG,                 /* вшитая исходная копия (только чтение) */
     getConfig: function () { return deepCopy(config); },
+    getMutation: getMutation,
     loadConfig: loadConfig,
     isConfigShape: isConfigShape,
     getPrice: getPrice,

@@ -95,6 +95,17 @@
     if ('muted' in obj && typeof obj.muted !== 'boolean') {
       errors.push('muted: ожидается boolean');
     }
+    /* Фаза 7a: счётчик мутаций — поле опциональное (сейвы до фазы 7a:
+     * load()/importFile() доподнимают {total: 0}); если есть — объект
+     * с целым total >= 0. Версия схемы genolab_save_v1 не меняется. */
+    if ('mutations' in obj) {
+      var mut = obj.mutations;
+      if (!mut || typeof mut !== 'object' || Array.isArray(mut) ||
+          typeof mut.total !== 'number' || !isFinite(mut.total) ||
+          mut.total < 0 || Math.floor(mut.total) !== mut.total) {
+        errors.push('mutations: ожидается объект {total} — целое >= 0');
+      }
+    }
     return { ok: errors.length === 0, errors: errors };
   }
 
@@ -154,6 +165,11 @@
     /* Сейвы до фазы 6: нет поля muted = звук включён (false). */
     if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('muted' in obj)) {
       obj.muted = false;
+    }
+    /* Сейвы до фазы 7a: нет поля mutations = свежий счётчик мутаций
+     * (версия схемы genolab_save_v1 не меняется). */
+    if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('mutations' in obj)) {
+      obj.mutations = { total: 0 };
     }
     var v = validate(obj);
     if (!v.ok) {
@@ -246,6 +262,10 @@
         /* Файлы-сейвы до фазы 6: нет поля muted = звук включён. */
         if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('muted' in obj)) {
           obj.muted = false;
+        }
+        /* Файлы-сейвы до фазы 7a: нет поля mutations = дефолт. */
+        if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('mutations' in obj)) {
+          obj.mutations = { total: 0 };
         }
         var v = validate(obj);
         if (!v.ok) {

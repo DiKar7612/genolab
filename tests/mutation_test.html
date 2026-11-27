@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тесты: mutation (фаза 7a, гейт)</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <style>
+    #results table { border-collapse: collapse; margin: 12px 0; }
+    #results th, #results td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+    #results .pass { color: #1a7f37; font-weight: bold; }
+    #results .fail { color: #c0392b; font-weight: bold; }
+    #results .skip { color: #b07d1a; font-weight: bold; }
+    #results pre { background: #f4f4f4; padding: 10px; border-left: 4px solid #666;
+      white-space: pre-wrap; font-family: Consolas, monospace; font-size: 13px; }
+    #verdict { font-size: 18px; }
+  </style>
+  <!-- Классические скрипты (не ESM): страница открывается с file://. -->
+  <script src="../js/core/rng.js"></script>
+  <script src="../js/core/genome.js"></script>
+  <script src="../js/core/breeder.js"></script>
+  <script src="../js/core/mutation.js"></script>
+</head>
+<body style="padding: 24px;">
+  <h1>Тесты: js/core/mutation.js (фаза 7a)</h1>
+  <p>Мутация — вне cross(): genome.js и breeder.js не меняются (ТЗ §9 7a).
+     Детерминированный ГСЧ mulberry32 (js/core/rng.js) с фиксированными seed —
+     результат воспроизводим. Вероятностный тест: 10 000 геномов × 8 аллелей =
+     80 000 испытаний, chance = 0.03 → ожидаемо ~2400 флипов, допуск ±5%.
+     «Отклонение» = |наблюдаемое − ожидаемое| / ожидаемое × 100.</p>
+  <div id="results"><p>Выполняются тесты…</p></div>
+  <script>
+  (function () {
+    'use strict';
+
+    var out = document.getElementById('results');
+    if (!window.GenoLab || !window.GenoLab.core || !window.GenoLab.core.mutation ||
+        !window.GenoLab.core.genome || !window.GenoLab.core.breeder ||
+        !window.GenoLab.core.rng) {
+      out.innerHTML = '<p class="fail">FAIL: модули GenoLab (rng/genome/breeder/mutation) не загрузились</p>';
+      return;
+    }
+    var G = window.GenoLab;
+    var results = [];
+
+    function report(name, status, lines) {
+      results.push({ name: name, status: status, lines: lines });
+    }
+
+    function sameGenome(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+    function expectedInverted(genome) {
+      var p = genome.pairs.map(function (pair) {
+        return [pair[0].toUpperCase() === pair[0] ? pair[0].toLowerCase() : pair[0].toUpperCase(),
+                pair[1].toUpperCase() === pair[1] ? pair[1].toLowerCase() : pair[1].toUpperCase()];
+      });
+      return p;
+    }
+
+    var mk = function (pairs) { return G.core.genome.createGenome('golo', pairs); };
+    var HET = mk([['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd']]);   // гетерозигота
+    var HOM = mk([['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']]);    // чистый рецессив
+
+    /* 1. chance=1, фиксированный seed: все 8 аллелей флипнуты (каждая пара
+     *    инвертируется: aa→AA, Aa→aA); фенотип гетерозиготы сохраняется,
+     *    гомозигота переключается на противоположный. */
+    (function () {
+      var r1 = G.core.mutation.flipGenome(HET, G.core.rng.createRng(501), { enabled: true, chance: 1 });
+      var r2 = G.core.mutation.flipGenome(HOM, G.core.rng.createRng(502), { enabled: true, chance: 1 });
+      var ok1 = r1.flipped === 8 && sameGenome(r1.genome.pairs, expectedInverted(HET));
+      var ok2 = r2.flipped === 8 && sameGenome(r2.genome.pairs, expectedInverted(HOM));
+      var ph1 = G.core.genome.genomeToPhenotype(r1.genome);
+      var ph2 = G.core.genome.genomeToPhenotype(r2.genome);
+      var phOrig2 = G.core.genome.genomeToPhenotype(HOM);
+      var hetKept = JSON.stringify(ph1) !== JSON.stringify(G.core.genome.genomeToPhenotype(HOM)) &&
+        G.core.genome.genotypeString(r1.genome).split(' ').length === 4;
+      report('T1. chance=1: все 8 аллелей инвертированы (Aa→aA, aa→AA)', (ok1 && ok2) ? 'PASS' : 'FAIL',
+        ['гетерозигота: flipped=' + r1.flipped + ', пары=' + JSON.stringify(r1.genome.pairs) +
+         ' (ожидалось ' + JSON.stringify(expectedInverted(HET)) + ')',
+         'гомозигота: flipped=' + r2.flipped + ', пары=' + JSON.stringify(r2.genome.pairs) +
+         ' (ожидалось ' + JSON.stringify(expectedInverted(HOM)) + ')',
+         'фенотип мутанта-гомозиготы: ' + JSON.stringify(ph2) +
+         ' (был ' + JSON.stringify(phOrig2) + ') — переключился=' +
+         (JSON.stringify(ph2) !== JSON.stringify(phOrig2))]);
+    })();
+
+    /* 2. chance=0 / enabled=false: геном идентичен входу, вход не мутируется,
+     *    flipped = 0. */
+    (function () {
+      var before = JSON.stringify(HET);
+      var r0 = G.core.mutation.flipGenome(HET, G.core.rng.createRng(503), { enabled: true, chance: 0 });
+      var rOff = G.core.mutation.flipGenome(HET, G.core.rng.createRng(504), { enabled: false, chance: 1 });
+      var ok = r0.flipped === 0 && sameGenome(r0.genome, HET) &&
+        rOff.flipped === 0 && sameGenome(rOff.genome, HET) &&
+        JSON.stringify(HET) === before && r0.genome !== HET;
+      report('T2. chance=0 / enabled=false: идентичность + вход не мутируется', ok ? 'PASS' : 'FAIL',
+        ['chance=0: flipped=' + r0.flipped + ', идентичен=' + sameGenome(r0.genome, HET) +
+         ', это новый объект=' + (r0.genome !== HET),
+         'enabled=false (chance=1): flipped=' + rOff.flipped + ', идентичен=' + sameGenome(rOff.genome, HET),
+         'вход не изменён=' + (JSON.stringify(HET) === before)]);
+    })();
+
+    /* 3. Распределение: 10 000 геномов × 8 аллелей = 80 000 испытаний,
+     *    chance=0.03 → ожидаемо 2400 флипов, допуск ±5% (2280..2520). */
+    (function () {
+      var seed = 707;
+      var rng = G.core.rng.createRng(seed);
+      var total = 0, flips = 0, n = 10000;
+      for (var i = 0; i < n; i++) {
+        var r = G.core.mutation.flipGenome(HET, rng, { enabled: true, chance: 0.03 });
+        total += 8;
+        flips += r.flipped;
+      }
+      var expected = total * 0.03;
+      var dev = Math.abs(flips - expected) / expected * 100;
+      var ok = dev <= 5;
+      report('T3. Распределение: 10 000 геномов × 8 аллелей, chance=0.03 → ~2400 (±5%)', ok ? 'PASS' : 'FAIL',
+        ['seed ' + seed + ', испытаний: ' + total + ', ожидаемо флипов: ' + expected,
+         'наблюдено флипов: ' + flips +
+         ' (доля ' + (flips / total * 100).toFixed(2) + '% из 3.00%), ' +
+         'отклонение ' + dev.toFixed(2) + '%' + (dev > 5 ? ' — ПРЕВЫШЕНО' : '')]);
+    })();
+
+    /* 4. Чистота: (a) flipGenome не трогает ГСЧ скрещивания — последовательность
+     *    cross() с тем же seed одинакова независимо от того, делался ли флип
+     *    на отдельном ГСЧ; (b) при chance=0 flipGenome не расходует свой ГСЧ. */
+    (function () {
+      function crossSeq(seed) {
+        var r = G.core.rng.createRng(seed);
+        var s = '';
+        for (var i = 0; i < 100; i++) {
+          G.core.breeder.cross(HET, HOM, r).forEach(function (k) { s += G.core.genome.genotypeString(k) + ';'; });
+        }
+        return s;
+      }
+      var a = crossSeq(1234);
+      G.core.mutation.flipGenome(HET, G.core.rng.createRng(999), { enabled: true, chance: 0.03 });
+      var b = crossSeq(1234);
+
+      var r1 = G.core.rng.createRng(777);
+      G.core.mutation.flipGenome(HET, r1, { enabled: true, chance: 0 });
+      var x1 = r1.randomInt(1, 4);
+      var x2 = G.core.rng.createRng(777).randomInt(1, 4);
+      var ok = a === b && x1 === x2;
+      report('T4. Чистота: cross не расходует ГСЧ мутаций, chance=0 не расходует ГСЧ', ok ? 'PASS' : 'FAIL',
+        ['cross(seed 1234) до и после флипа на отдельном ГСЧ: совпадает=' + (a === b),
+         'x(1..4) после flipGenome(chance=0) = ' + x1 + ', без вызова = ' + x2 +
+         ', совпадает=' + (x1 === x2)]);
+    })();
+
+    /* 5. Формы: результат проходит validateGenome; id и species сохранены;
+     *    невалидные аргументы бросают Error. */
+    (function () {
+      var r = G.core.mutation.flipGenome(HET, G.core.rng.createRng(505), { enabled: true, chance: 0.5 });
+      var v = G.core.genome.validateGenome(r.genome);
+      var idOk = r.genome.id === HET.id && r.genome.species === 'golo';
+      var threw = 0;
+      try { G.core.mutation.flipGenome(null, G.core.rng.createRng(1), { enabled: true, chance: 0.5 }); }
+      catch (e) { threw++; }
+      try { G.core.mutation.flipGenome(HET, {}, { enabled: true, chance: 0.5 }); }
+      catch (e) { threw++; }
+      try { G.core.mutation.flipGenome(HET, G.core.rng.createRng(1), { enabled: true, chance: 2 }); }
+      catch (e) { threw++; }
+      var ok = v.ok && idOk && threw === 3;
+      report('T5. validateGenome(результат) + id/species сохранены + ошибки на мусоре', ok ? 'PASS' : 'FAIL',
+        ['validateGenome: ' + (v.ok ? 'ok' : v.errors.join('; ')),
+         'id=' + r.genome.id + ', species=' + r.genome.species + ', сохранены=' + idOk,
+         'ошибок на невалидных аргументах (ожидается 3): ' + threw]);
+    })();
+
+    /* Вывод в DOM. */
+    var nPass = results.filter(function (r) { return r.status === 'PASS'; }).length;
+    var nFail = results.length - nPass;
+    var html = '<table><tr><th>№</th><th>Тест</th><th>Статус</th></tr>';
+    results.forEach(function (r, i) {
+      var cls = r.status === 'PASS' ? 'pass' : (r.status === 'SKIP' ? 'skip' : 'fail');
+      html += '<tr><td>' + (i + 1) + '</td><td>' + r.name + '</td><td class="' + cls + '">' + r.status + '</td></tr>';
+    });
+    html += '</table>';
+    results.forEach(function (r, i) {
+      html += '<h3>' + (i + 1) + '. ' + r.name + ' — <span class="' +
+        (r.status === 'PASS' ? 'pass' : 'fail') + '">' + r.status + '</span></h3><pre>' +
+        r.lines.join('\n') + '</pre>';
+    });
+    html += '<p id="verdict">ОБЩИЙ ВЕРДИКТ: <span class="' + (nFail ? 'fail' : 'pass') + '">' +
+      (nFail ? 'FAIL (' + nPass + '/' + results.length + ', упало ' + nFail + ')' : 'PASS (' + nPass + '/' + results.length + ')') + '</span></p>';
+    out.innerHTML = html;
+  })();
+  </script>
+</body>
+</html>

@@ -50,7 +50,12 @@
       /* Фаза 6: звук (ui/sfx.js). true = mute. Мягкая деградация:
        * в старых сейвах поля нет — звук включён (false), версия
        * схемы genolab_save_v1 не меняется. */
-      muted: false
+      muted: false,
+      /* Фаза 7a: счётчик мутаций (js/core/mutation.js) — всего
+       * мутировавших потомков. Мягкая деградация: в сейвах до
+       * фазы 7a поля нет — дефолт {total: 0}, версия схемы не
+       * меняется (save.js). */
+      mutations: { total: 0 }
     };
   }
 
@@ -204,7 +209,16 @@
         : { total: 0, hits: 0 },
       /* Фаза 6: mute — только boolean true мутит, отсутствие поля
        * или мусор = звук включён (мягкая деградация). */
-      muted: saved.muted === true
+      muted: saved.muted === true,
+      /* Фаза 7a: счётчик мутаций — save.js доподнимает {total: 0}
+       * для сейвов до фазы 7a; мусорная форма = дефолт. */
+      mutations: (saved.mutations && typeof saved.mutations === 'object' &&
+        !Array.isArray(saved.mutations) &&
+        typeof saved.mutations.total === 'number' &&
+        isFinite(saved.mutations.total) && saved.mutations.total >= 0 &&
+        Math.floor(saved.mutations.total) === saved.mutations.total)
+        ? { total: saved.mutations.total }
+        : { total: 0 }
     };
     emit();
   }
@@ -245,6 +259,20 @@
     return { total: current.predictions.total, hits: current.predictions.hits };
   }
 
+  /**
+   * Фаза 7a: учсть мутации (экран «Скрещивание» после flipGenome).
+   * @param {number} n — число мутировавших потомков (целое >= 0)
+   * @returns {{total: number}} — обновлённый счётчик (копия)
+   */
+  function recordMutations(n) {
+    if (typeof n !== 'number' || !isFinite(n) || n < 0 || Math.floor(n) !== n) {
+      throw new Error('store: recordMutations — ожидается целое >= 0');
+    }
+    current.mutations.total += n;
+    emit();
+    return { total: current.mutations.total };
+  }
+
   state.store = {
     /* ===== Экспорты: window.GenoLab.state.store ===== */
     getState: getState,
@@ -259,6 +287,7 @@
     addReputation: addReputation,
     applyState: applyState,
     recordPrediction: recordPrediction,
+    recordMutations: recordMutations,
     reset: reset,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

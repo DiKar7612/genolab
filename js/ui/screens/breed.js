@@ -32,6 +32,9 @@
     '.breed__ribbon-item svg{max-width:100%;height:auto}' +
     '.breed__ribbon-pheno{font-size:var(--font-size-sm);color:var(--ink-soft);text-align:center}' +
     '.breed__ribbon-status{font-size:var(--font-size-sm);color:var(--accent);text-align:center}' +
+    /* Фаза 7a: бейдж «мутация» и строка статистики (chance + счётчик). */
+    '.breed__mut-badge{display:inline-block;font-size:var(--font-size-sm);color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 6px}' +
+    '.breed__mut-info{display:flex;gap:16px;flex-wrap:wrap;color:var(--ink-soft);font-size:var(--font-size-sm);margin-top:6px}' +
     '.breed__msg{min-height:1.2em;margin-top:8px;color:var(--ink-soft)}' +
     /* Фаза 5: диалог — модальный оверлей (фон/Escape/свайп вниз закрывают). */
     '.breed__dialog-overlay{position:fixed;inset:0;background:rgba(61,50,41,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}' +
@@ -60,6 +63,12 @@
     var found = null;
     enclosureList().forEach(function (c) { if (c.id === id) found = c; });
     return found;
+  }
+
+  /* Фаза 7a: параметры мутаций из конфига (economy.getMutation). */
+  function mutCfg() {
+    var e = g.core && g.core.economy;
+    return (e && typeof e.getMutation === 'function') ? e.getMutation() : { enabled: false, chance: 0 };
   }
 
   /* Локальное состояние экрана (переживает перерисовки). */
@@ -121,9 +130,11 @@
       var sp = genome.getSpecies(r.genome.species);
       var status = r.status === 'in' ? 'В вольере: #' + esc(r.idIn) :
         r.status === 'pending' ? 'ожидает выбора' : 'выпущен';
+      /* Фаза 7a: бейдж «мутация» — потомок с ≥1 флипом аллеля. */
+      var badge = r.mutated ? '<span class="breed__mut-badge">мутация</span> ' : '';
       html += '<div class="breed__ribbon-item">' +
         '<div>' + creature.renderCreature(phen, 96) + '</div>' +
-        '<div class="breed__ribbon-pheno">' + esc(phLabel(phen, sp)) + '</div>' +
+        '<div class="breed__ribbon-pheno">' + badge + esc(phLabel(phen, sp)) + '</div>' +
         '<div class="breed__ribbon-status">' + status + '</div>' +
         '</div>';
     });
@@ -196,9 +207,17 @@
     if (selA && !byId(selA)) selA = null;
     if (selB && !byId(selB)) selB = null;
 
+    /* Фаза 7a: строка статистики мутаций (chance из конфига + счётчик). */
+    var mc = mutCfg();
+    var mutInfo = '<div class="breed__mut-info">' +
+      '<span>Шанс мутации: ' + (mc.chance * 100).toFixed(0) + '%</span>' +
+      '<span>Мутаций: ' + (st.mutations ? st.mutations.total : 0) + '</span>' +
+      '</div>';
+
     var html = '<section class="screen" aria-labelledby="screen-title">' +
       '<h1 class="screen__title" id="screen-title">Скрещивание</h1>' +
       '<style>' + STYLE_CSS + '</style>' +
+      mutInfo +
       '<div class="breed__parents">' +
       slotHTML('A', selA, busyClassA) +
       '<div class="breed__plus">×</div>' +
@@ -380,25 +399,47 @@
     global.setTimeout(function () {
       var offspring = g.core.breeder.cross(pa, pb);
       var store = getStore();
-      lastResults = offspring.map(function (off) { return { genome: off, status: 'pending', idIn: null }; });
+      /* Фаза 7a: мутации ВНЕ cross — flipGenome на каждого потомка.
+       * Отдельный ГСЧ для мутаций: последовательность ГСЧ скрещивания
+       * не расходуется (тест T5). Результат flipGenome — новый геном, вход
+       * из cross() не мутируется. */
+      var mc = mutCfg();
+      var mutRng = g.core.rng.createRng(Date.now());
+      var mutationMod = g.core.mutation;
+      lastResults = offspring.map(function (off) {
+        var entry = { genome: off, status: 'pending', idIn: null, mutated: false };
+        if (mutationMod && typeof mutationMod.flipGenome === 'function' &&
+            mc.enabled && mc.chance > 0) {
+          var res = mutationMod.flipGenome(off, mutRng, mc);
+          entry.genome = res.genome;
+          entry.mutated = res.flipped > 0;
+        }
+        return entry;
+      });
+      /* Фаза 7a: счётчик мутаций в сейве (+1 за каждого мутировавшего). */
+      if (mutationMod && typeof store.recordMutations === 'function') {
+        var mutatedCount = lastResults.filter(function (r) { return r.mutated; }).length;
+        if (mutatedCount > 0) store.recordMutations(mutatedCount);
+      }
       /* Квесты (фаза 4c): каждый полученный потомок засчитывается в цель,
-       * независимо от того, остался ли он в вольере. */
+       * независимо от того, остался ли он в вольере.
+       * Фаза 7a: фенотип — ПОСЛЕ флипа (questEngine получает мутант). */
       var quest = g.quests && g.quests.questEngine;
-      offspring.forEach(function (off) {
-        if (quest) quest.onOffspring(g.core.genome.genomeToPhenotype(off));
+      lastResults.forEach(function (r) {
+        if (quest) quest.onOffspring(g.core.genome.genomeToPhenotype(r.genome));
       });
       dialog = null;
       var freeBefore = store.getState().slotLimit - store.getState().enclosure.length;
       var rejected = [];
       var addedIds = [];
-      offspring.forEach(function (off, i) {
-        var res = store.addCreature(deepCopy(off));
+      lastResults.forEach(function (r, i) {
+        var res = store.addCreature(deepCopy(r.genome));
         if (res.ok) {
-          lastResults[i].status = 'in';
-          lastResults[i].idIn = res.id;
+          r.status = 'in';
+          r.idIn = res.id;
           addedIds.push(res.id);
         } else {
-          rejected.push({ genome: deepCopy(off), checked: false, index: i });
+          rejected.push({ genome: deepCopy(r.genome), checked: false, index: i });
         }
       });
       busy = false;

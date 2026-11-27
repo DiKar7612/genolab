@@ -79,10 +79,24 @@ genotype: string, phenotype: string, fraction: number }`; ключи
 | `loadConfig` | `loadConfig(url: string) => Promise<{ok: boolean, reason?: string}>` | Загрузка config.json по http:// с валидацией формы (`isConfigShape`); по file:// — `{ok:false, reason:'не удалось загрузить: ...'}`, остаётся вшитый |
 | `isConfigShape` | `isConfigShape(v: object) => boolean` | Проверка формы конфига: version=1, slots.base/max целые (max>=base), цены sellCreature/buySlot/sequence числа >=0, mutation.enabled булево, mutation.chance 0..1; лишние ключи допускаются |
 | `getPrice` | `getPrice(name: string) => number` | Цена действия из актуального конфига; бросает `Error` на неизвестном ключе |
+| `getMutation` | `getMutation() => {enabled: boolean, chance: number}` | Параметры мутаций (фаза 7a) из актуального конфига: `mutation.enabled`, `mutation.chance` (0..1) |
 
 Структура `CONFIG`: `{ version: 1, slots: {base: 12, max: 24},
 prices: {sellCreature: 20, buySlot: 100, sequence: 30},
-mutation: {enabled: false, chance: 0.03} }`.
+mutation: {enabled: true, chance: 0.03} }` (фаза 7a: мутации включены).
+
+---
+
+## js/core/mutation.js — `window.GenoLab.core.mutation` (фаза 7a)
+
+Мутации — ВНЕ `cross()`: `genome.js` и `breeder.js` не меняются
+(чистый менделизм). Каждый аллель потомка независимо переворачивается
+(A↔a, B↔b, C↔c, D↔d) с вероятностью `chance` на переданном ГСЧ
+(`js/core/rng.js`) — ГСЧ скрещивания не расходуется. Вход не мутируется.
+
+| Экспорт | Сигнатура | Описание |
+|---|---|---|
+| `flipGenome` | `flipGenome(genome: object, rng: {next(): number}, options?: {enabled: boolean, chance: number}) => {genome: object, flipped: number}` | Новый геном с независимым флипом каждого из 8 аллелей с вероятностью `chance` (только если `enabled && chance > 0`); `flipped` — число перевернутых аллелей; id сохраняется, species не меняется; бросает `Error` на не-объекте генома, отсутствии `rng.next` или `chance` вне 0..1 |
 
 ---
 
@@ -102,8 +116,10 @@ mutation: {enabled: false, chance: 0.03} }`.
 | `buySlot` | `buySlot() => {ok: boolean, slotLimit?: number, reason?: string}` | Купить слот (цена `prices.buySlot`, предел `slots.max`); списывает монеты |
 | `addCoins` | `addCoins(n: number) => number` | Прибавить монеты (может быть отрицательным); возвращает новый баланс; бросает `Error` на не-числе |
 | `addReputation` | `addReputation(n: number) => number` | Прибавить репутацию; возвращает новый баланс; бросает `Error` на не-числе |
-| `applyState` | `applyState(saved: object) => void` | Заменить состояние целиком (вызывается `save.js` после валидации) |
-| `reset` | `reset() => object` | Сброс к начальному состоянию (3 стартовых существа, 0 ресурсов, slotLimit = config.slots.base); возвращает новое состояние |
+| `applyState` | `applyState(saved: object) => void` | Заменить состояние целиком (вызывается `save.js` после валидации); мягкая деградация: `predictions`/`mutations` — дефолты, `muted` — только `true` |
+| `recordPrediction` | `recordPrediction(hit: boolean) => {total: number, hits: number}` | Фаза 5: проверка прогноза (экран «Предсказатель»): total +1, при hit также hits +1; бросает `Error` на не-boolean |
+| `recordMutations` | `recordMutations(n: number) => {total: number}` | Фаза 7a: счётчик мутаций `mutations.total += n` (экран «Скрещивание»); бросает `Error` на не-целом/отрицательном |
+| `reset` | `reset() => object` | Сброс к начальному состоянию (3 стартовых существа, 0 ресурсов, slotLimit = config.slots.base, counters = 0); возвращает новое состояние |
 
 ---
 
@@ -119,9 +135,9 @@ eval (SECURITY.md §6).
 | `FILE_NAME` | `'genolab_save_v1.json'` | Имя файла экспорта (константа) |
 | `MAX_IMPORT_BYTES` | `1048576` | Лимит импорта — 1 МБ (константа) |
 | `DEBOUNCE_MS` | `500` | Задержка автосохранения, мс (константа) |
-| `validate` | `validate(obj: object) => {ok: boolean, errors: string[]}` | Валидация объекта сейва по схеме `genolab_save_v1` (version, enclosure — валидные геномы со строковым id, resources — числа >=0, quests — объект, slotLimit целое 1..slots.max) |
+| `validate` | `validate(obj: object) => {ok: boolean, errors: string[]}` | Валидация объекта сейва по схеме `genolab_save_v1` (version, enclosure — валидные геномы со строковым id, resources — числа >=0, quests — объект, slotLimit целое 1..slots.max; опциональные поля с мягкой деградацией: `predictions` {total, hits}, `muted` boolean, `mutations` {total} целое >=0) |
 | `save` | `save() => boolean` | Записать текущее состояние в localStorage; false при ошибке записи |
-| `load` | `load() => object \| null` | Прочитать и применить сейв из localStorage (applyState); повреждённый JSON/схема — null + причина в `errorMessage()`, состояние остаётся чистым; сейвы фазы 3 без поля `quests` принимаются (отсутствующее поле = `{}`) |
+| `load` | `load() => object \| null` | Прочитать и применить сейв из localStorage (applyState); повреждённый JSON/схема — null + причина в `errorMessage()`, состояние остаётся чистым; мягкая деградация старых сейвов: нет `quests` = `{}`, нет `predictions` = {total:0, hits:0}, нет `muted` = false, нет `mutations` = {total:0} (версия схемы 1) |
 | `init` | `init() => void` | load() + подписка на store: автосохранение с debounce 500 мс на каждое изменение |
 | `errorMessage` | `errorMessage() => string \| null` | Последняя ошибка сейва (человекочитаемая) или null |
 | `exportFile` | `exportFile() => {ok: boolean, filename?: string, bytes?: number, reason?: string}` | Экспорт текущего состояния в JSON-файл (скачивание, 2-пробельный отступ) |
