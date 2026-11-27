@@ -368,3 +368,115 @@
 - Блокеры: нет. Коммит — после этой записи (см. хэш в следующей
   пометке).
 - Коммит: 2a8a32d (main).
+
+## [Фаза 7c / восстановление] Новая сессия, сверка по факту diff
+- Рабочее дерево (git diff --stat, не по памяти предыдущей сессии):
+  - js/ui/screens/codex.js +294/−18 — полная реализация экрана:
+    таблица признаков вида (аллели/модель/фенотипы из
+    core.genome.getSpeciesConfig), карточки всех достижимых фенотипов
+    (декартов продукт DD/Dd/dd → genomeToPhenotype, мини-рендер
+    renderCreature 64px, отметка «встречен» по store.codexSeen),
+    4 формулы наследования (mono 3:1, тест-кросс 1:1, неполное
+    1:2:1, дигибрид 9:3:3:1) — расщепления считаются pennettGrid
+    на лету, история мутаций (store.mutations.total), сводка
+    коллекции «X из Y». Экспорты window.GenoLab.ui.screens.codex,
+    регистрация в роутере сохранена.
+  - js/state/store.js +58/−2 — seenKey(genome) (ключ «вид|фенотипы»),
+    recordSeen(), codexSeen: {} в initialState(), авто-отметка
+    стартеров вольера, запись в addCreature(), восстановление
+    codexSeen в load().
+  - js/state/save.js +23 — валидация codexSeen (объект ключей,
+    значения true), доподнимание {} в load() и importFile(); версия
+    схемы genolab_save_v1 не менялась.
+  - css/components.css +82 — стили .codex__* (секции, pheno-grid,
+    pheno-карточки, --seen, формулы, grid-таблицы, total).
+  - LOGGING.md +1 — правило: одна фаза Pi — одна сессия, фиксация
+    состояния в LOG при заполнении контекста.
+- node --check: js/state/save.js, js/state/store.js,
+  js/ui/screens/codex.js — синтаксис OK.
+- Cache-buster: grep «?v=7c» по js/main.js, index.html, css/,
+  js/ui/screens/ — 0 совпадений (таких ссылок в дереве нет;
+  индексные ссылки чистые, бастеры в проекте не используются).
+- Untracked-файлов нет; тестовых страниц по 7c ещё нет.
+- Коммита нет — дерево оставлено как есть.
+
+## [Фаза 7c / завершение] Сессия проверки: E2E, регрессия, документы
+
+- Step 2 (cache-buster): `?v=7c` по всему дереву — 0 совпадений;
+  соглашения о бастерах в проекте нет (ни в одной фазе не вводилось) —
+  пропускаем, как и в предыдущих фазах.
+- Step 3 (node --check): js/state/save.js, js/state/store.js,
+  js/ui/screens/codex.js — синтаксис OK.
+- Step 4 (регрессия http://127.0.0.1:8321, Chrome DevTools MCP):
+  - genome.test.html — ОБЩИЙ ВЕРДИКТ: PASS (10 PASS)
+  - breeder.test.html — PASS (14/14)
+  - config_test.html — PASS (5/5)
+  - quests_test.html — PASS (7 PASS)
+  - mutation_test.html — PASS (5/5)
+  - render_grid.html — PASS (14/14)
+  - Итого: 6/6 страниц, 0 FAIL.
+  - Примечание: tests/species2_test.html в проекте отсутствует (упоминается
+    в плане сессии, но фазой 7d не создан) — в регрессии не участвует.
+- Step 5 (file:// smoke, 6 маршрутов): Вольер, Скрещивание,
+  Существо, Предсказатель, Заказы, Кодекс — все отрисованы, заголовки
+  верные, тело не пустое. Кодекс на file://: 26 карточек фенотипов
+  (2 вида: Голо 24 + Нокт 2), 4 блока формул.
+- Step 6 (E2E pennettGrid API vs DOM, http://):
+  - mono_grid: API 3x2 — DOM 3x2 — match=true
+  - dihybrid_grid: API 5x4 — DOM 5x4 — match=true
+  - mono_split: API «полосатый=3, однотонный=1» — строка расщепления
+    в DOM «3:1» — совпадает
+  - incomplete_split: 1:2:1 (коричневый=1, палевый=2, белый=1)
+    в API и в DOM — совпадает
+  - Скрещивание «Скрещивание» (Bb x Bb, pattern+size): DOM 5x4,
+    16 ячеек — совпадает с API.
+- Step 6b (E2E codexSeen, http://, полный reload через query-бастер
+  ?_=b1 — hash-навигация страницу не перезагружает):
+  - Чистый старт: storeMut=2, fileMut=2, storeEnc=11, fileEnc=11,
+    storeSeen=4, fileSeen=4 — стейт и файл согласованы.
+  - addCreature({species:'golo', pairs:[A/A,B/B,C/C,D/D]}) -> id c12,
+    ключ golo|коричневый|полосатый|крупный|острые: hasKey=true,
+    seen 4->5, enclosure 11->12; автосейв: fileSeen=5, fileEnc=12.
+  - Полный reload (?_=b1): seen=5, enclosure=12,
+    .codex__pheno--seen в DOM = 5 — PASSED (переживает reload).
+- Step 6c (E2E счётчик мутаций): store.mutations.total=2 ->
+  recordMutations(2) -> 4; DOM не обновляется на лету (emit без
+  ре-рендера экрана — по дизайну); после перехода
+  orders->codex ре-рендер показывает «Всего мутировавших потомков: 4»
+  (совпадает со стейтом) — «счётчик живой» по промпту 7c подтверждено.
+- Примечание к E2E: dev-сейв 127.0.0.1:8321 (11 существ) в ходе
+  проверки был сброшен до initialState (5 стартеров, mut 0, seen 3) —
+  тестовый origin, не пользовательские данные; файл://-origin
+  не тронут.
+- Step 7 (документы):
+  - docs/api.md обновлён: поле codexSeen в схеме genolab_save_v1,
+    начальное состояние (5 стартеров, авто-пометки 3 уникальных
+    фенотипов), строки addCreature/applyState/reset, валидация
+    validate/load (мягкая деградация codexSeen, версия схемы 1).
+    Исправлена устаревшая строка reset «3 стартовых существа»
+    (актуально с 7d: 3 golo + 2 noct).
+  - genolab_tz.md §9 7c сверен с фактом: таблица признаков ✓,
+    формулы ✓, «история открытых мутаций» реализована как
+    накопленный счётчик (по промпту фазы 7c: «счётчик мутаций живой»);
+    данные — из core.genome (species.json, двойной режим) и config
+    (CONFIG) без вшитых копий, только UI-обвязка ✓.
+  - Промпту фазы (Prompts/phase7c_codex.md) соответствие полное:
+    таблица признаков, ВСЕ достижимые фенотипы (вкл. incomplete),
+    формулы, прогресс коллекции «X из Y», codexSeen в сейве с мягкой
+    деградацией, оба вида, E2E-критерии.
+- Скриншоты (docs/screenshots/, проверены vision):
+  - phase7c_codex_top.png — заголовок, таблица 4 признаков Голо
+    (окрас: неполное, коричневый AA / палевый Aa / белый aa),
+    сетка фенотипов, зелёная отметка «встречен».
+  - phase7c_codex_noct.png — секция Нокт (свечение E/e, 1 из 2),
+    формулы 3:1 (75/25%) и 1:1 (50/50%), начало 1:2:1.
+  - phase7c_codex_bottom.png — 1:2:1 (25/50/25%), дигибрид
+    9:3:3:1 (56/19/19/6%), «История мутаций: Всего мутировавших
+    потомков: 0», «Общая коллекция: 3 из 26 фенотипов всех видов».
+- Финальный git status (без коммита, HEAD e5db947):
+  M LOGGING.md, LOG_1.1.md, css/components.css, docs/api.md,
+    js/state/save.js, js/state/store.js, js/ui/screens/codex.js
+  ?? docs/screenshots/phase7c_codex_{top,noct,bottom}.png
+- ВЕРДИКТ: фаза 7c готова — 0 FAIL, E2E PASSED, документы
+  синхронизированы. Коммит — по решению пользователя (в этой сессии
+  не делался).

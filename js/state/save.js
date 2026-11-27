@@ -106,6 +106,21 @@
         errors.push('mutations: ожидается объект {total} — целое >= 0');
       }
     }
+    /* Фаза 7c: коллекция кодекса — поле опциональное (load()/importFile()
+     * доподнимают {} для сейвов до фазы 7c); если есть — обычный объект,
+     * значения — true. Версия схемы genolab_save_v1 не меняется. */
+    if ('codexSeen' in obj) {
+      var cs = obj.codexSeen;
+      if (!cs || typeof cs !== 'object' || Array.isArray(cs)) {
+        errors.push('codexSeen: ожидается объект ключей-фенотипов');
+      } else {
+        Object.keys(cs).forEach(function (k) {
+          if (cs[k] !== true) {
+            errors.push('codexSeen: значение по ключу должно быть true');
+          }
+        });
+      }
+    }
     return { ok: errors.length === 0, errors: errors };
   }
 
@@ -170,6 +185,10 @@
      * (версия схемы genolab_save_v1 не меняется). */
     if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('mutations' in obj)) {
       obj.mutations = { total: 0 };
+    }
+    /* Сейвы до фазы 7c: нет поля codexSeen = пустая коллекция. */
+    if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('codexSeen' in obj)) {
+      obj.codexSeen = {};
     }
     var v = validate(obj);
     if (!v.ok) {
@@ -266,6 +285,10 @@
         /* Файлы-сейвы до фазы 7a: нет поля mutations = дефолт. */
         if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('mutations' in obj)) {
           obj.mutations = { total: 0 };
+        }
+        /* Файлы-сейвы до фазы 7c: нет поля codexSeen = пустая коллекция. */
+        if (obj && typeof obj === 'object' && !Array.isArray(obj) && !('codexSeen' in obj)) {
+          obj.codexSeen = {};
         }
         var v = validate(obj);
         if (!v.ok) {

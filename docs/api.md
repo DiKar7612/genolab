@@ -2,7 +2,9 @@
 
 Сгенерировано по фазе 4а (Prompts/phase4a_api.md) строго по реальному коду
 фаз 1–3; обновлено по фазе 4c (store.setQuests, js/quests/questEngine.js,
-стартовые существа). Каждый модуль — классический скрипт (IIFE), экспорты на
+стартовые существа) и фазе 7c (поле `codexSeen` — коллекция фенотипов
+кодекса, мягкая деградация сейвов до 7c). Каждый модуль — классический
+скрипт (IIFE), экспорты на
 namespace `window.GenoLab.*` (ESM-экспортов нет — решение фазы 0).
 
 Дальше этот документ — источник интерфейсов для фаз 4в и 5:
@@ -16,13 +18,20 @@ namespace `window.GenoLab.*` (ESM-экспортов нет — решение �
   enclosure: [ { id: string, species: string, pairs: [[string, string], ...] } ],
   resources: { coins: number >= 0, reputation: number >= 0 },
   quests: {},                    // {completed: [id], progress: {id: number}, ordersDone: [id]} — фаза 4c
-  slotLimit: number, 1..24       // целое, предел — config.slots.max
+  slotLimit: number, 1..24,      // целое, предел — config.slots.max
+  predictions: { total: number, hits: number },  // фаза 5
+  muted: boolean,                // фаза 6
+  mutations: { total: number },  // фаза 7a
+  codexSeen: {}                  // фаза 7c: { "<вид>|<фенотипы через |>": true } — встреченные фенотипы кодекса
 }
 ```
 
-Начальное состояние (`store.initialState`, фаза 4c): 3 стартовых существа
-в вольере — `c1`/`c2` (Aa Bb Cc Dd, гетерозиготы) и `c3` (aa bb cc dd,
-чистый рецессив); 0 монет и 0 репутации; `quests: {}`.
+Начальное состояние (`store.initialState`, фазы 4c/7d/7c): 5 стартовых
+существ в вольере — `c1`/`c2` (golo, Aa Bb Cc Dd, гетерозиготы), `c3`
+(golo, aa bb cc dd, чистый рецессив), `c4`/`c5` (noct, Ee); 0 монет и 0
+репутации; `quests: {}`; `codexSeen` — автоматически помечаются фенотипы
+стартовых существ (3 уникальных: golo-гетерозиготный, golo-рецессивный,
+noct-светящийся).
 
 ---
 
@@ -109,17 +118,17 @@ mutation: {enabled: true, chance: 0.03} }` (фаза 7a: мутации вклю
 |---|---|---|
 | `getState` | `getState() => object` | Глубокая копия состояния (схема `genolab_save_v1`, см. начало файла) |
 | `subscribe` | `subscribe(fn: () => void) => () => void` | Подписка на изменения; возвращаемая функция — отписка; бросает `Error` если fn не функция |
-| `addCreature` | `addCreature(genome: object) => {ok: boolean, id?: string, reason?: string}` | Добавить в вольер: лимит слотов, `validateGenome`; пустой/конфликтующий id автоматически заменяется следующим свободным `cN` |
+| `addCreature` | `addCreature(genome: object) => {ok: boolean, id?: string, reason?: string}` | Добавить в вольер: лимит слотов, `validateGenome`; пустой/конфликтующий id автоматически заменяется следующим свободным `cN`; фаза 7c: фенотип нового существа автоматически помечается в `codexSeen` |
 | `removeCreature` | `removeCreature(id: string) => {ok: boolean, reason?: string}` | Убрать существо по id |
 | `sellCreature` | `sellCreature(id: string) => {ok: boolean, coins?: number, reason?: string}` | Продать: убрать из вольера + `prices.sellCreature` монет |
 | `setQuests` | `setQuests(quests: object) => void` | Заменить прогресс квестов целиком (используется `js/quests/questEngine.js`); бросает `Error` на не-объекте |
 | `buySlot` | `buySlot() => {ok: boolean, slotLimit?: number, reason?: string}` | Купить слот (цена `prices.buySlot`, предел `slots.max`); списывает монеты |
 | `addCoins` | `addCoins(n: number) => number` | Прибавить монеты (может быть отрицательным); возвращает новый баланс; бросает `Error` на не-числе |
 | `addReputation` | `addReputation(n: number) => number` | Прибавить репутацию; возвращает новый баланс; бросает `Error` на не-числе |
-| `applyState` | `applyState(saved: object) => void` | Заменить состояние целиком (вызывается `save.js` после валидации); мягкая деградация: `predictions`/`mutations` — дефолты, `muted` — только `true` |
+| `applyState` | `applyState(saved: object) => void` | Заменить состояние целиком (вызывается `save.js` после валидации); мягкая деградация: `predictions`/`mutations` — дефолты, `muted` — только `true`; фаза 7c: `codexSeen` — объект, в старых сейвах нет поля = `{}`, после замены состояния фенотипы всех существ вольера автоматически помечаются |
 | `recordPrediction` | `recordPrediction(hit: boolean) => {total: number, hits: number}` | Фаза 5: проверка прогноза (экран «Предсказатель»): total +1, при hit также hits +1; бросает `Error` на не-boolean |
 | `recordMutations` | `recordMutations(n: number) => {total: number}` | Фаза 7a: счётчик мутаций `mutations.total += n` (экран «Скрещивание»); бросает `Error` на не-целом/отрицательном |
-| `reset` | `reset() => object` | Сброс к начальному состоянию (3 стартовых существа, 0 ресурсов, slotLimit = config.slots.base, counters = 0); возвращает новое состояние |
+| `reset` | `reset() => object` | Сброс к начальному состоянию (5 стартовых существ — 3 golo + 2 noct, 0 ресурсов, slotLimit = config.slots.base, counters = 0, `codexSeen` — фенотипы стартовых существ); возвращает новое состояние |
 
 ---
 
@@ -135,9 +144,9 @@ eval (SECURITY.md §6).
 | `FILE_NAME` | `'genolab_save_v1.json'` | Имя файла экспорта (константа) |
 | `MAX_IMPORT_BYTES` | `1048576` | Лимит импорта — 1 МБ (константа) |
 | `DEBOUNCE_MS` | `500` | Задержка автосохранения, мс (константа) |
-| `validate` | `validate(obj: object) => {ok: boolean, errors: string[]}` | Валидация объекта сейва по схеме `genolab_save_v1` (version, enclosure — валидные геномы со строковым id, resources — числа >=0, quests — объект, slotLimit целое 1..slots.max; опциональные поля с мягкой деградацией: `predictions` {total, hits}, `muted` boolean, `mutations` {total} целое >=0) |
+| `validate` | `validate(obj: object) => {ok: boolean, errors: string[]}` | Валидация объекта сейва по схеме `genolab_save_v1` (version, enclosure — валидные геномы со строковым id, resources — числа >=0, quests — объект, slotLimit целое 1..slots.max; опциональные поля с мягкой деградацией: `predictions` {total, hits}, `muted` boolean, `mutations` {total} целое >=0, `codexSeen` — объект ключей-фенотипов со значениями `true`, фаза 7c) |
 | `save` | `save() => boolean` | Записать текущее состояние в localStorage; false при ошибке записи |
-| `load` | `load() => object \| null` | Прочитать и применить сейв из localStorage (applyState); повреждённый JSON/схема — null + причина в `errorMessage()`, состояние остаётся чистым; мягкая деградация старых сейвов: нет `quests` = `{}`, нет `predictions` = {total:0, hits:0}, нет `muted` = false, нет `mutations` = {total:0} (версия схемы 1) |
+| `load` | `load() => object \| null` | Прочитать и применить сейв из localStorage (applyState); повреждённый JSON/схема — null + причина в `errorMessage()`, состояние остаётся чистым; мягкая деградация старых сейвов: нет `quests` = `{}`, нет `predictions` = {total:0, hits:0}, нет `muted` = false, нет `mutations` = {total:0}, нет `codexSeen` = {} (фаза 7c; версия схемы 1 не меняется) |
 | `init` | `init() => void` | load() + подписка на store: автосохранение с debounce 500 мс на каждое изменение |
 | `errorMessage` | `errorMessage() => string \| null` | Последняя ошибка сейва (человекочитаемая) или null |
 | `exportFile` | `exportFile() => {ok: boolean, filename?: string, bytes?: number, reason?: string}` | Экспорт текущего состояния в JSON-файл (скачивание, 2-пробельный отступ) |

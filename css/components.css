@@ -419,6 +419,88 @@
   color: var(--accent);
 }
 
+/* --- Кодекс: разделы и карточки фенотипов (фаза 7c) --- */
+.codex__species,
+.codex__formulas,
+.codex__mutations {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.codex__pheno-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.codex__pheno {
+  width: 128px;
+  padding: 10px;
+  text-align: center;
+  background: var(--surface-warm);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+.codex__pheno--seen {
+  background: var(--surface);
+  border: 1px solid var(--ok);
+}
+
+.codex__pheno svg {
+  display: block;
+  margin: 0 auto 6px;
+}
+
+.codex__pheno-label {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--ink);
+}
+
+.codex__pheno-mark {
+  margin: 4px 0 0;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--ink-soft);
+}
+
+.codex__pheno--seen .codex__pheno-mark {
+  color: var(--ok);
+}
+
+.codex__formula {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--surface-warm);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.codex__formula h3 {
+  margin: 0 0 6px;
+}
+
+.codex__formula-cross {
+  margin: 0 0 8px;
+  font-size: var(--font-size-sm);
+  color: var(--ink-soft);
+}
+
+.codex-grid td,
+.codex-grid th {
+  text-align: center;
+  font-size: var(--font-size-xs, 12px);
+  white-space: nowrap;
+}
+
+.codex__total {
+  margin-top: 24px;
+  font-weight: 600;
+}
+
 /* --- Тосты: короткие подтверждения (фаза 5, TZ §8.6) --- */
 .toast-region {
   position: fixed;

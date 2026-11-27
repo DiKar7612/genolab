@@ -41,8 +41,32 @@
     ];
   }
 
+  /* Фаза 7c: ключ фенотипа для коллекции кодекса —
+   * «вид|значения фенотипов по признакам» (совпадает с форматом
+   * phenotype в cells решётки + префикс вида). */
+  function seenKey(genome) {
+    if (!core.genome || typeof core.genome.genomeToPhenotype !== 'function') {
+      return null;
+    }
+    try {
+      var sp = core.genome.getSpecies(genome.species);
+      if (!sp) return null;
+      var ph = core.genome.genomeToPhenotype(genome);
+      return genome.species + '|' + sp.traits.map(function (t) { return ph[t.id]; }).join('|');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** Отметить фенотип существа как встреченный (коллекция кодекса). */
+  function recordSeen(state, genome) {
+    if (!state) return;
+    var k = seenKey(genome);
+    if (k) state.codexSeen[k] = true;
+  }
+
   function initialState() {
-    return {
+    var st = {
       version: 1,
       enclosure: starterCreatures(),                   // геномы, лимит slotLimit
       resources: { coins: 0, reputation: 0 },
@@ -59,8 +83,16 @@
        * мутировавших потомков. Мягкая деградация: в сейвах до
        * фазы 7a поля нет — дефолт {total: 0}, версия схемы не
        * меняется (save.js). */
-      mutations: { total: 0 }
+      mutations: { total: 0 },
+      /* Фаза 7c: коллекция кодекса — ключи встреченных фенотипов
+       * (ключ -> true). Мягкая деградация: в сейвах до фазы 7c поля
+       * нет — {} (save.js доподнимает). Версия схемы genolab_save_v1
+       * не меняется. */
+      codexSeen: {}
     };
+    /* Стартеры вольера — встречены с первого запуска. */
+    st.enclosure.forEach(function (c) { recordSeen(st, c); });
+    return st;
   }
 
   var current = initialState();
@@ -131,6 +163,8 @@
       genome.id = 'c' + (maxN + 1);
     }
     current.enclosure.push(genome);
+    /* Фаза 7c: каждый новый существо попадает в коллекцию кодекса. */
+    recordSeen(current, genome);
     emit();
     return { ok: true, id: genome.id };
   }
@@ -222,8 +256,26 @@
         isFinite(saved.mutations.total) && saved.mutations.total >= 0 &&
         Math.floor(saved.mutations.total) === saved.mutations.total)
         ? { total: saved.mutations.total }
-        : { total: 0 }
+        : { total: 0 },
+      /* Фаза 7c: коллекция кодекса — save.js доподнимает {} для сейвов
+       * до фазы 7c; здесь — двойная страховка по форме (только строковые
+       * ключи со значением true). */
+      codexSeen: (function () {
+        if (!saved.codexSeen || typeof saved.codexSeen !== 'object' ||
+            Array.isArray(saved.codexSeen)) {
+          return {};
+        }
+        var out = {};
+        Object.keys(saved.codexSeen).forEach(function (k) {
+          if (saved.codexSeen[k] === true) out[k] = true;
+        });
+        return out;
+      })()
     };
+    /* Фаза 7c: мягкая деградация сейвов до 7c — коллекцию
+     * восстанавливаем из существ, которые уже в вольере
+     * (старые сейвы поля codexSeen не имеют; версия схемы не меняется). */
+    saved.enclosure.forEach(function (c) { recordSeen(current, c); });
     emit();
   }
 
