@@ -72,6 +72,20 @@
       "title": "Нужен мелкий белый с круглыми ушами",
       "phen": { "size": "мелкий", "color": "белый", "ears": "круглые" },
       "reward": { "coins": 200, "reputation": 3 }
+    },
+    {
+      "id": "o6",
+      "title": "Нужен светящийся Нокт",
+      "species": "noct",
+      "phen": { "glow": "светящееся" },
+      "reward": { "coins": 80, "reputation": 2 }
+    },
+    {
+      "id": "o7",
+      "title": "Нужен Нокт без свечения",
+      "species": "noct",
+      "phen": { "glow": "не светящееся" },
+      "reward": { "coins": 120, "reputation": 2 }
     }
   ]
 }

@@ -21,9 +21,10 @@
   <script src="../js/core/breeder.js"></script>
 </head>
 <body style="padding: 24px;">
-  <h1>Тесты: js/core/genome.js (фаза 1 + фаза 7b — неполное доминирование)</h1>
+  <h1>Тесты: js/core/genome.js (фазы 1 + 7b + 7d)</h1>
   <p>Валидация генома, фенотипизация по правилам species.json
-     (узор/размер/уши — полное доминирование; окрас — incomplete, фаза 7b)
+     (узор/размер/уши — полное доминирование; окрас — incomplete, фаза 7b;
+     фаза 7d — второй вид Нокт с признаком glow, полное доминирование)
      и 10 000 скрещиваний на каждый вероятностный тест через genomeToPhenotype
      (детерминированный ГСЧ mulberry32, фиксированные seed — воспроизводимо).
      «Отклонение» = |наблюдаемая доля − ожидаемая| / ожидаемая × 100.
@@ -48,26 +49,37 @@
     }
 
     var mk = function (pairs) { return G.core.genome.createGenome('golo', pairs); };
+    var mkNoct = function (pairs) { return G.core.genome.createGenome('noct', pairs); };
     var cfg = G.core.genome.getSpeciesConfig();
-    var sp = cfg.species[0];
+    var sp = cfg.species[0]; /* golo — первый в species.json */
 
-    /* 1. Конфиг вида: один вид, 4 признака; фаза 7b: окрас — incomplete
-       (гетерозигота → «палевый»), остальные — полное доминирование. */
+    /* 1. Конфиг видов (фаза 7d): два вида — golo (4 признака; окрас —
+       incomplete, фаза 7b, остальные — полное) и noct (1 признак glow,
+       полное доминирование). */
     (function () {
-      var colorT = sp.traits.filter(function (t) { return t.id === 'color'; })[0];
-      var others = sp.traits.filter(function (t) { return t.id !== 'color'; });
-      var ok = cfg.species.length === 1 &&
-        sp.traits.length === 4 &&
+      var golo = cfg.species.filter(function (s) { return s.id === 'golo'; })[0];
+      var noct = cfg.species.filter(function (s) { return s.id === 'noct'; })[0];
+      var colorT = golo.traits.filter(function (t) { return t.id === 'color'; })[0];
+      var others = golo.traits.filter(function (t) { return t.id !== 'color'; });
+      var glowT = noct && noct.traits.filter(function (t) { return t.id === 'glow'; })[0];
+      var ok = cfg.species.length === 2 &&
+        golo && golo.traits.length === 4 &&
         colorT && colorT.model === 'incomplete' &&
         typeof colorT.values[colorT.dominant + colorT.recessive] === 'string' &&
         others.every(function (t) { return t.model === 'complete-dominance'; }) &&
         ['color', 'pattern', 'size', 'ears'].every(function (id) {
-          return sp.traits.some(function (t) { return t.id === id; });
-        });
-      report('T1. Конфиг: 1 вид, 4 признака; окрас — incomplete (фаза 7b), остальные — полное',
-        ok ? 'PASS' : 'FAIL',
-        ['вид: ' + sp.id + ' («' + sp.name + '»), признаков: ' + sp.traits.length +
-         ' (' + sp.traits.map(function (t) { return t.id + ' ' + t.dominant + '/' + t.recessive + ' [' + t.model + ']'; }).join(', ') + ')']);
+          return golo.traits.some(function (t) { return t.id === id; });
+        }) &&
+        noct && noct.traits.length === 1 &&
+        glowT && glowT.model === 'complete-dominance' &&
+        typeof glowT.values[glowT.dominant] === 'string' &&
+        typeof glowT.values[glowT.recessive] === 'string';
+      var lines = ['golo (' + golo.traits.length + ' признаков): ' +
+        golo.traits.map(function (t) { return t.id + ' ' + t.dominant + '/' + t.recessive + ' [' + t.model + ']'; }).join(', ') +
+        '\nnoct (' + (noct ? noct.traits.length : 0) + ' признаков): ' +
+        (noct ? noct.traits.map(function (t) { return t.id + ' ' + t.dominant + '/' + t.recessive + ' [' + t.model + ']'; }).join(', ') : 'вид не найден')];
+      report('T1. Конфиг: 2 вида (7d); golo — 4 признака (окрас incomplete, 7b); noct — glow (полное)',
+        ok ? 'PASS' : 'FAIL', lines);
     })();
 
     /* 2. Валидация: корректный геном. */
@@ -202,6 +214,28 @@
       },
       { 'полосатый + крупный': 9 / 16, 'полосатый + мелкий': 3 / 16,
         'однотонный + крупный': 3 / 16, 'однотонный + мелкий': 1 / 16 }, 3);
+
+    /* Фаза 7d: 9a. Нокт — валидация генома и фенотипизация glow. */
+    (function () {
+      var lines = [];
+      var ok = true;
+      var v = G.core.genome.validateGenome({ species: 'noct', pairs: [['E', 'e']] });
+      ok = ok && v.ok;
+      var vBad = G.core.genome.validateGenome({ species: 'noct', pairs: [['A', 'a']] });
+      ok = ok && !vBad.ok;
+      lines.push('validate(Ee): ok=' + v.ok + '; validate(Aa для noct): ok=' + vBad.ok +
+        (vBad.errors ? ' (' + vBad.errors.join('; ') + ')' : ''));
+      var cases = [['E', 'E', 'светящееся'], ['E', 'e', 'светящееся'],
+                   ['e', 'E', 'светящееся'], ['e', 'e', 'не светящееся']];
+      cases.forEach(function (c) {
+        var ph = G.core.genome.genomeToPhenotype(mkNoct([[c[0], c[1]]]));
+        var pass = ph.glow === c[2];
+        if (!pass) ok = false;
+        lines.push('glow [' + c[0] + c[1] + '] → ' + ph.glow + (pass ? '' : '  (ожидалось ' + c[2] + ')'));
+      });
+      report('T9a. Нокт (7d): валидация + фенотипизация glow (EE/Ee/eE → светящееся, ee → не светящееся)',
+        ok ? 'PASS' : 'FAIL', lines);
+    })();
 
     /* 9. Вшитый конфиг и файл species.json совпадают (только по http://;
        по file:// fetch локального JSON блокируется CORS — SKIP). */

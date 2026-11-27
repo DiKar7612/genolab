@@ -97,7 +97,7 @@
           '<div class="' + cls + '" data-cell="' + i + '" data-geno="' + cell.genotype +
           '" data-pheno="' + phenotypeText(cell.phenotype) + '" title="' +
           gameteLabel(cell.gameteA) + ' × ' + gameteLabel(cell.gameteB) + ' = ' + cell.genotype + '">' +
-          '<div class="pennett__cell-sprite">' + creature.renderCreature(ph, sizePx) + '</div>' +
+          '<div class="pennett__cell-sprite">' + creature.renderCreature(ph, sizePx, undefined, parentA.species) + '</div>' +
           '<div class="pennett__cell-geno">' + cell.genotype + '</div>' +
           '<div class="pennett__cell-frac">' + fracLabel(cell.fraction) + '</div>' +
           '</div>';

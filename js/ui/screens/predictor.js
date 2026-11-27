@@ -41,11 +41,32 @@
   }
 
   function getStore() { return g.state.store; }
-  function species() { return g.core.genome.getSpecies('golo'); }
+
+  /* Фаза 7d: вид определяется по выбранному родителю A (дефолт 'golo'). */
+  function species() {
+    var st = getStore().getState();
+    var c = null;
+    st.enclosure.forEach(function (x) { if (x.id === selA) c = x; });
+    var id = c ? c.species : 'golo';
+    var sp = g.core.genome.getSpecies(id);
+    return sp || g.core.genome.getSpecies('golo');
+  }
+
+  /* Фаза 7d: выбраны ли родители разных видов. */
+  function speciesDiffers() {
+    var st = getStore().getState();
+    var pa = null, pb = null;
+    st.enclosure.forEach(function (c) {
+      if (c.id === selA) pa = c;
+      if (c.id === selB) pb = c;
+    });
+    return !!(pa && pb && pa.species !== pb.species);
+  }
 
   var currentContainer = null;
   var selA = '';
   var selB = '';
+  var targetSpeciesId = ''; /* вид, для которого собраны цели (фаза 7d) */
   var target = {};    /* traitId -> фенотиповое значение (строка из t.values) */
   var predText = '';  /* сырой ввод игрока, "%" без знака */
   var result = null;  /* {pred, actualPct, hit, errPP, traits:[...]} */
@@ -88,6 +109,8 @@
       if (c.id === selB) pb = c;
     });
     if (!pa || !pb || pa === pb) return null;
+    /* Фаза 7d: разные виды — прогноз некорректен (checkBoth бросит). */
+    if (pa.species !== pb.species) return null;
 
     var num = parseFloat(String(predText).replace(',', '.'));
     if (!isFinite(num) || num < 0 || num > 100) return null;
@@ -128,14 +151,15 @@
 
   function optionsHTML() {
     var st = getStore().getState();
-    var sp = species();
     var html = '<option value="">— выберите —</option>';
     st.enclosure.forEach(function (c) {
       var phen = g.core.genome.genomeToPhenotype(c);
+      /* Фаза 7d: признаки по виду существа + имя вида в подписи. */
+      var sp = g.core.genome.getSpecies(c.species);
       var parts = [];
       sp.traits.forEach(function (t) { parts.push(phen[t.id]); });
       html += '<option value="' + esc(c.id) + '">' + esc(c.id) +
-        ' — ' + esc(parts.join(', ')) + '</option>';
+        ' — ' + esc(sp.name + ': ' + parts.join(', ')) + '</option>';
     });
     return html;
   }
@@ -248,9 +272,14 @@
     currentContainer = container;
     var st = getStore().getState();
 
+    /* Фаза 7d: цели перестраиваются при смене вида (родитель A). */
+    var spNow = species();
+    if (targetSpeciesId !== spNow.id) {
+      target = {};
+      targetSpeciesId = spNow.id;
+    }
     if (Object.keys(target).length === 0) {
-      var sp0 = species();
-      sp0.traits.forEach(function (t) { target[t.id] = t.values[t.dominant]; });
+      spNow.traits.forEach(function (t) { target[t.id] = t.values[t.dominant]; });
     }
 
     var html =
@@ -269,6 +298,9 @@
       '<select class="pred__sel" data-who="b" aria-label="\u0420\u043E\u0434\u0438\u0442\u0435\u043B\u044C B">' +
       optionsHTML() + '</select></div>' +
       '</div>' +
+      (speciesDiffers()
+        ? '<p class="screen__hint" style="color:var(--danger)">\u0420\u043E\u0434\u0438\u0442\u0435\u043B\u0438 \u0434\u043E\u043B\u0436\u043D\u044B \u0431\u044B\u0442\u044C \u043E\u0434\u043D\u043E\u0433\u043E \u0432\u0438\u0434\u0430 \u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0432\u0443\u0445 \u0441\u0443\u0449\u0435\u0441\u0442\u0432 \u043E\u0434\u043D\u043E\u0433\u043E \u0432\u0438\u0434\u0430.</p>'
+        : '') +
       '<p class="screen__hint">\u0426\u0435\u043B\u0435\u0432\u043E\u0439 \u0444\u0435\u043D\u043E\u0442\u0438\u043F:</p>' +
       '<div class="pred__target-row">' + targetSelectsHTML() + '</div>' +
       '<div class="pred__check">' +

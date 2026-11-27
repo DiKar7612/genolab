@@ -82,20 +82,26 @@
   var lastResults = [];  // {genome, status: 'in' | 'out' | 'pending', idIn}
   var dialog = null;     // {rejected: [{genome, checked, index}], free: number, addedIds: [id]}
 
-  function slotOptions(selectedId) {
+  function slotOptions(selectedId, filterId) {
     var genome = g.core.genome;
     var list = enclosureList();
+    /* Фаза 7d: межвидовое скрещивание запрещено — второго родителя
+     * выбираем только из существ того же вида, что и другой. */
+    var other = filterId ? byId(filterId) : null;
+    if (other) {
+      list = list.filter(function (c) { return c.species === other.species; });
+    }
     var html = '<option value="">— выберите —</option>';
     list.forEach(function (c) {
       var phen = genome.genomeToPhenotype(c);
       var sp = genome.getSpecies(c.species);
       html += '<option value="' + esc(c.id) + '"' + (c.id === selectedId ? ' selected' : '') + '>' +
-        esc(c.id + ' — ' + phLabel(phen, sp)) + '</option>';
+        esc(c.id + ' — ' + sp.name + ': ' + phLabel(phen, sp)) + '</option>';
     });
     return html;
   }
 
-  function slotHTML(which, selectedId, isBusy) {
+  function slotHTML(which, selectedId, isBusy, otherId) {
     var genome = g.core.genome;
     var creature = g.render.creature;
     var c = byId(selectedId);
@@ -103,15 +109,17 @@
     var label;
     if (c) {
       var phen = genome.genomeToPhenotype(c);
-      sprite = creature.renderCreature(phen, 96);
-      label = c.id + ' — ' + phLabel(phen, genome.getSpecies(c.species));
+      /* Фаза 7d: рендер по виду + имя вида в подписи. */
+      sprite = creature.renderCreature(phen, 96, undefined, c.species);
+      var spSel = genome.getSpecies(c.species);
+      label = c.id + ' — ' + spSel.name + ': ' + phLabel(phen, spSel);
     } else {
       sprite = '<span class="breed-slot__empty">пусто</span>';
       label = 'родитель не выбран';
     }
     return '<div class="breed-slot' + (isBusy ? ' is-busy' : '') + '" data-breed-slot="' + which + '">' +
       '<select class="breed-slot__select" id="breed-select-' + which + '" name="breed-select-' + which + '" data-breed-select="' + which + '" aria-label="Родитель ' + which + '">' +
-      slotOptions(selectedId) +
+      slotOptions(selectedId, otherId) +
       '</select>' +
       '<div class="breed-slot__sprite">' + sprite + '</div>' +
       '<div class="breed-slot__label">' + esc(label) + '</div>' +
@@ -133,7 +141,8 @@
       /* Фаза 7a: бейдж «мутация» — потомок с ≥1 флипом аллеля. */
       var badge = r.mutated ? '<span class="breed__mut-badge">мутация</span> ' : '';
       html += '<div class="breed__ribbon-item">' +
-        '<div>' + creature.renderCreature(phen, 96) + '</div>' +
+        /* Фаза 7d: рендер по виду потомка. */
+        '<div>' + creature.renderCreature(phen, 96, undefined, r.genome.species) + '</div>' +
         '<div class="breed__ribbon-pheno">' + badge + esc(phLabel(phen, sp)) + '</div>' +
         '<div class="breed__ribbon-status">' + status + '</div>' +
         '</div>';
@@ -219,9 +228,9 @@
       '<style>' + STYLE_CSS + '</style>' +
       mutInfo +
       '<div class="breed__parents">' +
-      slotHTML('A', selA, busyClassA) +
+      slotHTML('A', selA, busyClassA, selB) +
       '<div class="breed__plus">×</div>' +
-      slotHTML('B', selB, busyClassB) +
+      slotHTML('B', selB, busyClassB, selA) +
       '</div>' +
       '<div class="breed__actions" style="margin-top:10px">' +
       '<button class="btn" type="button" data-breed-random>Случайно</button>' +
@@ -253,17 +262,25 @@
     });
 
     randomBtn.addEventListener('click', function () {
-      var ids = enclosureList().map(function (c) { return c.id; });
-      if (ids.length < 2) {
-        message = 'Для случайного выбора нужно минимум два существа в вольере.';
+      /* Фаза 7d: случайная пара — только одного вида. */
+      var bySpecies = {};
+      enclosureList().forEach(function (c) {
+        (bySpecies[c.species] = bySpecies[c.species] || []).push(c.id);
+      });
+      var pools = Object.keys(bySpecies)
+        .map(function (k) { return bySpecies[k]; })
+        .filter(function (ids) { return ids.length >= 2; });
+      if (pools.length === 0) {
+        message = 'Для случайного выбора нужно минимум два существа одного вида в вольере.';
         renderScreen(container);
         return;
       }
-      var i = g.core.rng.randomInt(0, ids.length - 1);
-      var j = g.core.rng.randomInt(0, ids.length - 2);
+      var pool = pools[g.core.rng.randomInt(0, pools.length - 1)];
+      var i = g.core.rng.randomInt(0, pool.length - 1);
+      var j = g.core.rng.randomInt(0, pool.length - 2);
       if (j >= i) j += 1;
-      selA = ids[i];
-      selB = ids[j];
+      selA = pool[i];
+      selB = pool[j];
       renderScreen(container);
     });
 
@@ -386,6 +403,16 @@
     var pb = byId(selB);
     if (!pa || !pb) {
       message = 'Родители не найдены в вольере.';
+      renderScreen(container);
+      return;
+    }
+    /* Фаза 7d: guard межвидового скрещивания на уровне UI (в core
+     * checkBoth тоже бросит, но здесь понятнее для игрока). */
+    if (pa.species !== pb.species) {
+      var spA = g.core.genome.getSpecies(pa.species);
+      var spB = g.core.genome.getSpecies(pb.species);
+      message = 'Скрещивание между видами невозможно: ' +
+        spA.name + ' × ' + spB.name + '.';
       renderScreen(container);
       return;
     }

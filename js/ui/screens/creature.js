@@ -34,14 +34,15 @@
 
   function optionsHTML() {
     var st = getStore().getState();
-    var sp = g.core.genome.getSpecies('golo');
     var html = '<option value="">— выберите существо —</option>';
     st.enclosure.forEach(function (c) {
       var phen = g.core.genome.genomeToPhenotype(c);
+      /* Фаза 7d: признаки по виду существа + имя вида в подписи. */
+      var sp = g.core.genome.getSpecies(c.species);
       var parts = [];
       sp.traits.forEach(function (t) { parts.push(phen[t.id]); });
       html += '<option value="' + esc(c.id) + '" name="' + esc(c.id) + '">№ ' +
-        esc(c.id) + ' — ' + esc(parts.join(', ')) + '</option>';
+        esc(c.id) + ' — ' + esc(sp.name + ': ' + parts.join(', ')) + '</option>';
     });
     return html;
   }
@@ -88,7 +89,8 @@
       body = '<p class="creature__empty">Вольер пуст — загляните на экран «Скрещивание».</p>';
     } else {
       var phen = genome.genomeToPhenotype(c);
-      var svg = g.render.creature.renderCreature(phen, 240);
+      /* Фаза 7d: рендер по виду существа (4-й аргумент). */
+      var svg = g.render.creature.renderCreature(phen, 240, undefined, c.species);
       var canSeq = !known[c.id] && st.resources.coins >= price;
       var seqBlock = known[c.id]
         ? genotypeHTML(c)

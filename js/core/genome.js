@@ -1,5 +1,9 @@
 /* ГеноЛаб — js/core/genome.js — модель генома (фаза 1).
  *
+ * ФАЗА 7d (2026-11-27): во вшитую копию SPECIES добавлен второй вид
+ * noct (1 признак, полное доминирование); логика модуля не менялась —
+ * она уже динамична по speciesId и числу признаков вида.
+ *
  * РАЗМОРОЗКА (фаза 7b, 2026-11-27): genomeToPhenotype и isSpeciesConfig
  * учитывают model "incomplete" (неполное доминирование, признак color —
  * гетерозигота → t.values[dom+rec]). Минимальная правка по ТЗ §9 7b:
@@ -9,8 +13,9 @@
  * Двойной режим загрузки: экспорты — window.GenoLab.core.genome
  * (ESM-экспорты не используются — решение фазы 0, LOG.md).
  *
- * Конфиг вида: источник — js/data/species.json (один вид, 4 признака;
- * цвет — incomplete с фазы 7b, остальные — полное доминирование).
+ * Конфиг вида: источник — js/data/species.json (фаза 7d: два вида —
+ * golo (4 признака; цвет — incomplete с фазы 7b, остальные — полное
+ * доминирование) и noct (1 признак — свечение, полное доминирование)).
  * По file:// браузер не читает локальный JSON
  * без сервера (CORS), поэтому в этом файле есть вшитая точная копия
  * SPECIES — она используется по умолчанию. loadSpecies(url) (по
@@ -50,6 +55,25 @@
                    coatMix: 0.0,  tailDrop: 0, eyeState: 'open' },
           old:   { scale: 0.95, headScale: 1.0,  earTilt: 28, patternOpacity: 0.45,
                    coatMix: 0.65, tailDrop: 6, eyeState: 'squint' }
+        }
+      },
+      /* Фаза 7d: второй вид Нокт (1 признак, полное доминирование). */
+      {
+        id: 'noct',
+        name: 'Нокт',
+        traits: [
+          { id: 'glow', name: 'Свечение', model: 'complete-dominance',
+            dominant: 'E', recessive: 'e',
+            values: { E: 'светящееся', e: 'не светящееся' } }
+        ],
+        /* Стадии жизни (ART_STYLE.md §6); идентично lifeStages в species.json. */
+        lifeStages: {
+          baby:  { scale: 0.72, headScale: 1.2, earTilt: 0,  patternOpacity: 1.0,
+                   coatMix: 0.25, tailDrop: 0, eyeState: 'open-big' },
+          adult: { scale: 1.0,  headScale: 1.0, earTilt: 0,  patternOpacity: 1.0,
+                   coatMix: 0.0,  tailDrop: 0, eyeState: 'open' },
+          old:   { scale: 0.95, headScale: 1.0, earTilt: 18, patternOpacity: 1.0,
+                   coatMix: 0.65, tailDrop: 4, eyeState: 'squint' }
         }
       }
     ]

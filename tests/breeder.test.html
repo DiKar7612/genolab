@@ -214,6 +214,27 @@
         ['x после вызова решётки = ' + x1 + ', x без вызова = ' + x2 + ', совпадает=' + ok]);
     })();
 
+    /* Фаза 7d: 13. Межвидовое скрещивание запрещено (checkBoth → Error). */
+    (function () {
+      var noctEe = G.core.genome.createGenome('noct', [['E', 'e']]);
+      var threw = false;
+      var msg = '';
+      try {
+        G.core.breeder.cross(AaC, noctEe);
+      } catch (e) { threw = true; msg = e.message; }
+      report('T13. cross(golo, noct) → Error (межвидовое запрещено, 7d)', threw ? 'PASS' : 'FAIL',
+        ['исключение: ' + threw + ', сообщение: ' + msg]);
+    })();
+
+    /* Фаза 7d: 14. Нокт: Ee×Ee → 3:1 светящееся:не светящееся (±5%). */
+    (function () {
+      var mkN = function (pairs) { return G.core.genome.createGenome('noct', pairs); };
+      distTest('T14. Нокт Ee×Ee → 3:1 (±5%), фенотип glow (7d)', 909,
+        mkN([['E', 'e']]), mkN([['E', 'e']]),
+        function (ch) { return G.core.genome.genomeToPhenotype(ch).glow; },
+        { 'светящееся': 0.75, 'не светящееся': 0.25 }, 5);
+    })();
+
     /* Вывод в DOM. */
     var nPass = results.filter(function (r) { return r.status === 'PASS'; }).length;
     var nFail = results.length - nPass;

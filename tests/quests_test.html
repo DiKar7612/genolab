@@ -146,20 +146,23 @@
         /* Стартовые (фаза 7b: окрас — неполное доминирование, Aa → палевый):
          * c1/c2 Aa Bb Cc Dd (палевый полосатый крупный острые),
          * c3 aa bb cc dd (белый однотонный мелкий круглые).
-         * o1 (коричневый) в стартовом вольере не совпадает — коричневый
-         * теперь только гомозигота AA, получить можно скрещиванием. */
+         * Фаза 7d: c4/c5 — Нокт Ee (светящееся). o1 (коричневый) в стартовом
+         * вольере не совпадает; o6 (светящийся Нокт) → c4; o7 (без свечения)
+         * не совпадает (нужен ee); заказы golo не матчат Ноктов и наоборот. */
         var list = engine.listOrders();
         var byId = {};
         list.forEach(function (o) { byId[o.id] = o; });
-        var ok = list.length === 5 &&
+        var ok = list.length === 7 &&
           byId.o1.match === null &&
           byId.o2.match === 'c1' &&
           byId.o4.match === 'c1' &&
           byId.o3.match === 'c3' &&
           byId.o5.match === 'c3' &&
+          byId.o6.match === 'c4' &&
+          byId.o7.match === null &&
           list.every(function (o) { return o.done === false; });
-        if (ok) pass('T6 listOrders: match по стартовому вольеру');
-        else fail('T6 listOrders', JSON.stringify(list.map(function (o) { return { id: o.id, match: o.match, done: o.done }; })));
+        if (ok) pass('T6 listOrders: match по стартовому вольеру (7d: +o6/o7)');
+        else fail('T6 listOrders', JSON.stringify(list.map(function (o) { return { id: o.id, species: o.species, match: o.match, done: o.done }; })));
       } catch (e) { fail('T6 listOrders', e.message); }
 
       /* T7 — isQuestsShape (безопасность формы файла) */

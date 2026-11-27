@@ -40,7 +40,8 @@
     var core = g.core;
     var phen = core.genome.genomeToPhenotype(c);
     var sp = core.genome.getSpecies(c.species);
-    var svg = g.render.creature.renderCreature(phen, 96);
+    /* Фаза 7d: рендер по виду существа (4-й аргумент). */
+    var svg = g.render.creature.renderCreature(phen, 96, undefined, c.species);
     return '<article class="enclosure__card">' +
       '<div class="enclosure__card-svg">' + svg + '</div>' +
       '<h2 class="enclosure__card-id">#' + esc(c.id) + ' — ' + esc(sp.name) + '</h2>' +
@@ -60,11 +61,14 @@
   }
 
   var currentContainer = null;
+  /* Фаза 7d: фильтр по виду ('' — все виды). */
+  var filterSpecies = '';
 
   function renderScreen(container) {
     var store = g.state.store;
     var save = g.state.save;
     var econ = g.core.economy;
+    var core = g.core;
     var st = store.getState();
     var price = (econ.getPrice('sellCreature')) || 0;
     /* Фаза 6: кнопка «Купить слот» — store.buySlot() (цена/предел из
@@ -91,11 +95,29 @@
       '<input class="enclosure__import-input" type="file" accept=".json,application/json" hidden></label>' +
       '</div>';
 
+    /* Фаза 7d: фильтр по виду — список видов из встроенного конфига. */
+    var speciesCfg = core.genome.getSpeciesConfig();
+    html += '<div class="enclosure__filter">' +
+      '<label for="enclosure-species-filter">Вид: </label>' +
+      '<select id="enclosure-species-filter" class="enclosure__species-filter">' +
+      '<option value=""' + (filterSpecies === '' ? ' selected' : '') + '>все виды</option>' +
+      (speciesCfg && Array.isArray(speciesCfg.species) ? speciesCfg.species : []).map(function (sp) {
+        return '<option value="' + esc(sp.id) + '"' +
+          (filterSpecies === sp.id ? ' selected' : '') + '>' + esc(sp.name) + '</option>';
+      }).join('') +
+      '</select></div>';
+
+    var shown = filterSpecies === ''
+      ? st.enclosure
+      : st.enclosure.filter(function (c) { return c.species === filterSpecies; });
+
     html += '<div class="enclosure__grid">';
     if (st.enclosure.length === 0) {
       html += '<span class="screen__hint">Вольер пуст. Существа появятся после скрещивания.</span>';
+    } else if (shown.length === 0) {
+      html += '<span class="screen__hint">В вольере нет существ этого вида.</span>';
     } else {
-      st.enclosure.forEach(function (c) { html += cardHTML(c, price); });
+      shown.forEach(function (c) { html += cardHTML(c, price); });
     }
     html += '</div></section>';
 
@@ -103,6 +125,15 @@
 
     var errBox = container.querySelector('.enclosure__error');
     if (errBox) errBox.textContent = save.errorMessage();
+
+    /* Фаза 7d: фильтр по виду. */
+    var speciesFilter = container.querySelector('#enclosure-species-filter');
+    if (speciesFilter) {
+      speciesFilter.addEventListener('change', function () {
+        filterSpecies = speciesFilter.value || '';
+        renderScreen(container);
+      });
+    }
 
     container.querySelectorAll('.enclosure__card').forEach(function (cardEl) {
       /* Заголовок карточки: «#c1 — Голо» — id до « — ». */

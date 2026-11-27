@@ -43,6 +43,25 @@
         "adult": { "scale": 1.0,  "headScale": 1.0,  "earTilt": 0,  "patternOpacity": 1.0,  "coatMix": 0.0,  "tailDrop": 0, "eyeState": "open" },
         "old":   { "scale": 0.95, "headScale": 1.0,  "earTilt": 28, "patternOpacity": 0.45, "coatMix": 0.65, "tailDrop": 6, "eyeState": "squint" }
       }
+    },
+    {
+      "id": "noct",
+      "name": "Нокт",
+      "traits": [
+        {
+          "id": "glow",
+          "name": "Свечение",
+          "model": "complete-dominance",
+          "dominant": "E",
+          "recessive": "e",
+          "values": { "E": "светящееся", "e": "не светящееся" }
+        }
+      ],
+      "lifeStages": {
+        "baby":  { "scale": 0.72, "headScale": 1.2, "earTilt": 0,  "patternOpacity": 1.0, "coatMix": 0.25, "tailDrop": 0, "eyeState": "open-big" },
+        "adult": { "scale": 1.0,  "headScale": 1.0, "earTilt": 0,  "patternOpacity": 1.0, "coatMix": 0.0,  "tailDrop": 0, "eyeState": "open" },
+        "old":   { "scale": 0.95, "headScale": 1.0, "earTilt": 18, "patternOpacity": 1.0, "coatMix": 0.65, "tailDrop": 4, "eyeState": "squint" }
+      }
     }
   ]
 }

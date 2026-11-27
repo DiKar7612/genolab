@@ -75,15 +75,45 @@
              coatMix: 0.65, tailDrop: 6, eyeState: 'squint' }
   };
 
+  /* Фаза 7d: второй вид Нокт — круглый корпус, большие уши, короткий
+   * хвост, свечение (домирантный аллель E). Фенотип: 1 признак glow.
+   * Палитра — тёплый ряд §5 + свечение #e8c76f (решение фазы 7d). */
+  var NOCT_DEFAULT_PHENOTYPE = { glow: 'светящееся' };
+  var NOCT_PALETTE = {
+    body: '#8f5a3c', belly: '#e0b184', outline: '#5f3a22',
+    tail: '#b06a3f', glow: '#e8c76f'
+  };
+  var KNOWN_SPECIES = { golo: true, noct: true };
+
   var clipSeq = 0;
+  var glowSeq = 0;
 
   function paletteFor(colorValue) {
     return PALETTES[colorValue] || PALETTES[DEFAULT_PHENOTYPE.color];
   }
 
+  /**
+   * Фаза 7d: вид рендера (опциональный аргумент, дефолт 'golo').
+   * @throws Error при неизвестном виде
+   */
+  function resolveSpecies(speciesId) {
+    var id = (typeof speciesId === 'string' && speciesId) ? speciesId : 'golo';
+    var gm = g.core && g.core.genome;
+    if (gm && typeof gm.getSpecies === 'function') {
+      if (!gm.getSpecies(id)) throw new Error('creature: неизвестный вид "' + id + '"');
+      return id;
+    }
+    if (!KNOWN_SPECIES[id]) throw new Error('creature: неизвестный вид "' + id + '"');
+    return id;
+  }
+
   /** Фенотип с подменой отсутствующих/пустых значений на доминантные. */
-  function normalizePhenotype(phenotype) {
+  function normalizePhenotype(phenotype, speciesId) {
     var src = (phenotype && typeof phenotype === 'object') ? phenotype : {};
+    if (speciesId === 'noct') {
+      var v = src.glow;
+      return { glow: (typeof v === 'string' && v) ? v : NOCT_DEFAULT_PHENOTYPE.glow };
+    }
     var ph = {};
     Object.keys(DEFAULT_PHENOTYPE).forEach(function (key) {
       var v = src[key];
@@ -97,11 +127,12 @@
     return (typeof stage === 'string' && DEFAULT_STAGES[stage]) ? stage : 'adult';
   }
 
-  /** Параметры стадии (из конфига вида golo, если есть, иначе §6 по умолчанию). */
-  function stageFor(name) {
+  /** Параметры стадии (из конфига вида, если есть, иначе §6 по умолчанию). */
+  function stageFor(name, speciesId) {
     try {
       var gm = g.core && g.core.genome;
-      var sp = (gm && typeof gm.getSpecies === 'function') ? gm.getSpecies('golo') : null;
+      var sp = (gm && typeof gm.getSpecies === 'function')
+        ? gm.getSpecies(speciesId || 'golo') : null;
       if (sp && sp.lifeStages && sp.lifeStages[name]) return sp.lifeStages[name];
     } catch (e) { /* конфига нет — значения по умолчанию */ }
     return DEFAULT_STAGES[name];
@@ -200,8 +231,115 @@
       '</g>';
   }
 
+  /* ===== Части Нокта (копия assets/parts/noct-*.svg, заливки — из палитры) ===== */
+
+  function partNoctTail(p) {
+    return '<ellipse cx="82" cy="72" rx="9" ry="6" fill="' + p.tail + '" stroke="' +
+      p.outline + '" stroke-width="2"/>';
+  }
+
+  function partNoctEars(p) {
+    return '<g transform="rotate(-8 31 24)"><ellipse cx="31" cy="24" rx="11" ry="17" fill="' + p.body +
+      '" stroke="' + p.outline + '" stroke-width="2"/>' +
+      '<ellipse cx="31" cy="27" rx="5" ry="9.5" fill="' + p.belly + '"/></g>' +
+      '<g transform="rotate(8 69 24)"><ellipse cx="69" cy="24" rx="11" ry="17" fill="' + p.body +
+      '" stroke="' + p.outline + '" stroke-width="2"/>' +
+      '<ellipse cx="69" cy="27" rx="5" ry="9.5" fill="' + p.belly + '"/></g>';
+  }
+
+  function partNoctBody(p) {
+    return '<ellipse cx="50" cy="62" rx="31" ry="27" fill="' + p.body + '" stroke="' +
+      p.outline + '" stroke-width="2.5"/>';
+  }
+
+  /* Свечение (аллель E): размытое пятно feGaussianBlur + яркое ядро.
+   * id фильтра уникален на страницу (как clipSeq для golo). */
+  function partNoctGlow(p) {
+    glowSeq += 1;
+    var id = 'gl-noct-glow-' + glowSeq;
+    return '<filter id="' + id + '" x="-60%" y="-60%" width="220%" height="220%">' +
+      '<feGaussianBlur stdDeviation="3"/></filter>' +
+      '<ellipse cx="50" cy="70" rx="12" ry="9" fill="' + p.glow + '" filter="url(#' + id +
+      ')" opacity="0.9"/>' +
+      '<ellipse cx="50" cy="70" rx="6.5" ry="4.8" fill="' + p.glow + '"/>';
+  }
+
+  /* Морда Нокта: большие глаза (ночное зрение) + носик-рот. */
+  function partNoctFace(p, eyeState) {
+    var s = '<ellipse cx="50" cy="66" rx="10" ry="7.5" fill="' + p.belly + '"/>';
+    if (eyeState === 'open-big') {
+      s += '<circle cx="39" cy="54" r="6" fill="' + p.eye + '"/>' +
+        '<circle cx="61" cy="54" r="6" fill="' + p.eye + '"/>' +
+        '<circle cx="41" cy="52" r="2" fill="' + p.eyeHighlight + '"/>' +
+        '<circle cx="63" cy="52" r="2" fill="' + p.eyeHighlight + '"/>';
+    } else if (eyeState === 'squint') {
+      s += '<ellipse cx="39" cy="54.5" rx="4.5" ry="2" fill="' + p.eye + '"/>' +
+        '<ellipse cx="61" cy="54.5" rx="4.5" ry="2" fill="' + p.eye + '"/>';
+    } else { /* open (adult) */
+      s += '<circle cx="39" cy="54" r="5" fill="' + p.eye + '"/>' +
+        '<circle cx="61" cy="54" r="5" fill="' + p.eye + '"/>' +
+        '<circle cx="40.6" cy="52.4" r="1.6" fill="' + p.eyeHighlight + '"/>' +
+        '<circle cx="62.6" cy="52.4" r="1.6" fill="' + p.eyeHighlight + '"/>';
+    }
+    s += '<path d="M46 68 Q50 71 54 68" fill="none" stroke="' + p.eye +
+      '" stroke-width="1.5" stroke-linecap="round"/>';
+    return s;
+  }
+
+  /** Сборка Нокта (фаза 7d): хвост → уши → корпус → свечение → морда. */
+  function buildPartsNoct(phen, st) {
+    var p = { body: NOCT_PALETTE.body, belly: NOCT_PALETTE.belly,
+              outline: NOCT_PALETTE.outline, tail: NOCT_PALETTE.tail,
+              glow: (phen.glow === NOCT_DEFAULT_PHENOTYPE.glow)
+                ? NOCT_PALETTE.glow : null };
+    var coat = (isFinite(Number(st.coatMix)) && Number(st.coatMix) > 0)
+      ? Number(st.coatMix) : 0;
+    if (coat > 0) {
+      p.body = mixToGrey(p.body, coat);
+      p.belly = mixToGrey(p.belly, coat);
+      p.tail = mixToGrey(p.tail, coat);
+    }
+    p.eye = EYE_COLOR;
+    p.eyeHighlight = EYE_HIGHLIGHT;
+
+    var parts = [];
+
+    var tail = partNoctTail(p);
+    if (st.tailDrop > 0) {
+      tail = '<g transform="translate(0 ' + st.tailDrop + ')">' + tail + '</g>';
+    }
+    parts.push({ id: 'noct-tail', svg: tail });
+
+    var earSvg = partNoctEars(p);
+    if (st.earTilt > 0) {
+      earSvg = '<g transform="rotate(' + st.earTilt + ' 50 35)">' + earSvg + '</g>';
+    }
+    parts.push({ id: 'noct-ears', svg: earSvg });
+
+    parts.push({ id: 'noct-body', svg: partNoctBody(p) });
+
+    if (phen.glow === NOCT_DEFAULT_PHENOTYPE.glow) {
+      parts.push({ id: 'noct-glow', svg: partNoctGlow(p) });
+    }
+
+    var face = partNoctFace(p, st.eyeState);
+    if (st.headScale !== 1) {
+      face = '<g transform="translate(50 56) scale(' + st.headScale +
+        ') translate(-50 -56)">' + face + '</g>';
+    }
+    parts.push({ id: 'noct-face', svg: face });
+
+    return { palette: p, parts: parts };
+  }
+
   /** Список применённых частей (id + разметка) для фенотипа и стадии. */
-  function buildParts(phen, st) {
+  function buildParts(phen, st, speciesId) {
+    if (speciesId === 'noct') return buildPartsNoct(phen, st);
+    return buildPartsGolo(phen, st);
+  }
+
+  /** Сборка Голо (фаза 2, палитра фазы 0.5 / 7b). */
+  function buildPartsGolo(phen, st) {
     var p = paletteFor(phen.color);
     p = { body: p.body, belly: p.belly, outline: p.outline,
           pattern: p.pattern, tail: p.tail };
@@ -253,24 +391,30 @@
 
   /**
    * Строка SVG-существа из фенотипа.
-   * @param {object} [phenotype] — { color, pattern, size, ears }
-   *   (значения из species.json; пропуски — доминантные)
+   * @param {object} [phenotype] — { color, pattern, size, ears } (golo) или
+   *   { glow } (noct, фаза 7d); пропуски — доминантные
    * @param {number} [sizePx] — сторона в px, диапазон 64..320
    * @param {string} [stage] — стадия жизни: 'baby' | 'adult' | 'old'
    *   (умолчание 'adult'; параметры — ART_STYLE.md §6)
+   * @param {string} [speciesId] — фаза 7d: 'golo' (умолчание) | 'noct'
    * @returns {string} — готовый <svg viewBox="0 0 100 100" ...>
    */
-  function renderCreature(phenotype, sizePx, stage) {
-    var phen = normalizePhenotype(phenotype);
+  function renderCreature(phenotype, sizePx, stage, speciesId) {
+    var spId = resolveSpecies(speciesId);
+    var phen = normalizePhenotype(phenotype, spId);
     var stName = stageNameOf(stage);
-    var st = stageFor(stName);
-    var built = buildParts(phen, st);
+    var st = stageFor(stName, spId);
+    var built = buildParts(phen, st, spId);
     var px = clampSize(sizePx);
-    var baseScale = (typeof SCALES[phen.size] === 'number')
-      ? SCALES[phen.size] : SCALES[DEFAULT_PHENOTYPE.size];
+    /* Нокт без признака размера — масштаб только по стадии. */
+    var baseScale = (spId === 'noct') ? 1.0
+      : ((typeof SCALES[phen.size] === 'number')
+        ? SCALES[phen.size] : SCALES[DEFAULT_PHENOTYPE.size]);
     var scale = baseScale * (isFinite(Number(st.scale)) && Number(st.scale) ? Number(st.scale) : 1);
-    var label = 'существо: ' + phen.color + ', ' + phen.pattern +
-      ', ' + phen.size + ', уши ' + phen.ears + ', стадия: ' + stName;
+    var label = (spId === 'noct')
+      ? ('Нокт: ' + phen.glow + ', стадия: ' + stName)
+      : ('существо: ' + phen.color + ', ' + phen.pattern +
+        ', ' + phen.size + ', уши ' + phen.ears + ', стадия: ' + stName);
     return '<svg viewBox="0 0 100 100" width="' + px + '" height="' + px +
       '" role="img" aria-label="' + label + '">' +
       '<g transform="translate(50 52) scale(' + scale + ') translate(-50 -52)">' +
@@ -283,29 +427,39 @@
    * применены, какие цвета залиты, какой масштаб группы, стадия.
    * @param {object} [phenotype]
    * @param {string} [stage] — 'baby' | 'adult' | 'old' (умолчание 'adult')
+   * @param {string} [speciesId] — фаза 7d: 'golo' (умолчание) | 'noct'
    * @returns {{phenotype: object, stage: string, eyeState: string,
    *   modules: string[], colors: object, scale: number}}
    */
-  function describePhenotypeRender(phenotype, stage) {
-    var phen = normalizePhenotype(phenotype);
+  function describePhenotypeRender(phenotype, stage, speciesId) {
+    var spId = resolveSpecies(speciesId);
+    var phen = normalizePhenotype(phenotype, spId);
     var stName = stageNameOf(stage);
-    var st = stageFor(stName);
-    var built = buildParts(phen, st);
-    var baseScale = (typeof SCALES[phen.size] === 'number')
-      ? SCALES[phen.size] : SCALES[DEFAULT_PHENOTYPE.size];
+    var st = stageFor(stName, spId);
+    var built = buildParts(phen, st, spId);
+    var baseScale = (spId === 'noct') ? 1.0
+      : ((typeof SCALES[phen.size] === 'number')
+        ? SCALES[phen.size] : SCALES[DEFAULT_PHENOTYPE.size]);
+    var colors = {
+      body: built.palette.body,
+      belly: built.palette.belly,
+      outline: built.palette.outline,
+      tail: built.palette.tail,
+      eye: built.palette.eye
+    };
+    if (spId === 'noct') {
+      colors.glow = built.palette.glow;
+    } else {
+      colors.pattern = built.palette.pattern;
+    }
     return {
       phenotype: phen,
+      /* Фаза 7d: вид рендера (для DOM-проверяемых тестов и UI). */
+      species: spId,
       stage: stName,
       eyeState: st.eyeState,
       modules: built.parts.map(function (part) { return part.id; }),
-      colors: {
-        body: built.palette.body,
-        belly: built.palette.belly,
-        outline: built.palette.outline,
-        pattern: built.palette.pattern,
-        tail: built.palette.tail,
-        eye: built.palette.eye
-      },
+      colors: colors,
       scale: baseScale * (isFinite(Number(st.scale)) && Number(st.scale) ? Number(st.scale) : 1)
     };
   }

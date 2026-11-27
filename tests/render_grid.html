@@ -129,6 +129,13 @@
       <div class="row-flex" id="stages"></div>
     </section>
 
+    <section aria-label="Вид Нокт (фаза 7d)">
+      <h2>Вид «Нокт» (фаза 7d): признак свечения E/e × стадии (6)</h2>
+      <p class="hint">Два фенотипа (светящееся EE/Ee — feGaussianBlur #e8c76f;
+      не светящееся ee) на трёх стадиях жизни. Рендер: js/render/creature.js.</p>
+      <div class="row-flex" id="noct-grid"></div>
+    </section>
+
     <section aria-label="Описатель рендера">
       <h2>describePhenotypeRender (для DOM-проверяемых тестов)</h2>
       <table class="desc-table">
@@ -408,6 +415,60 @@
         check('T10. палевый: Aa → «палевый», рендер между AA и aa, тело #c98a5b',
           ok, 'Aa=' + hetero.color + ', AA=' + homoDom.color + ', aa=' + homoRec.color +
           ', уникальных рендеров: ' + new Set([rH, rD, rR]).size);
+      })();
+
+      /* ---- Нокт (фаза 7d): 2 фенотипа × 3 стадии = 6 рендеров ---- */
+      (function () {
+        var mkN = function (pairs) {
+          return genome.createGenome('noct', pairs);
+        };
+        var noctEl = document.getElementById('noct-grid');
+        var fN = document.createDocumentFragment();
+        var noctRenders = { glow: {}, noglow: {} };
+        [['EE', ['E', 'E']], ['Ee', ['E', 'e']], ['ee', ['e', 'e']]]
+          .forEach(function (gc) {
+            var phen = genome.genomeToPhenotype(mkN([gc[1]]));
+            var isGlow = phen.glow === 'светящееся';
+            ['baby', 'adult', 'old'].forEach(function (stName) {
+              var r = creature.renderCreature(phen, 120, stName, 'noct');
+              noctRenders[isGlow ? 'glow' : 'noglow'][stName] = r;
+              var fig = document.createElement('figure');
+              fig.innerHTML = r;
+              var cap = document.createElement('figcaption');
+              cap.textContent = gc[0] + ' · ' + phen.glow + ' · ' + stName;
+              fig.appendChild(cap);
+              fN.appendChild(fig);
+            });
+          });
+        noctEl.appendChild(fN);
+
+        /* T11. Нокт: свечение — feGaussianBlur #e8c76f, у ee — нет фильтра;
+           EE/Ee — идентичны фенотипу, ee — отличен; стадии различаются. */
+        var gB = noctRenders.glow.adult;
+        var nB = noctRenders.noglow.adult;
+        var okT11 = gB.indexOf('feGaussianBlur') >= 0 &&
+          gB.indexOf('#e8c76f') >= 0 &&
+          nB.indexOf('feGaussianBlur') < 0 &&
+          nB.indexOf('#e8c76f') < 0 &&
+          new Set(['baby', 'adult', 'old'].map(function (s) { return noctRenders.glow[s]; })).size === 3 &&
+          noctRenders.glow.baby !== noctRenders.noglow.baby &&
+          gB.indexOf('viewBox="0 0 100 100"') >= 0 && gB.indexOf('role="img"') >= 0;
+        check('T11. Нокт (7d): glow-фильтр #e8c76f только у светящихся, стадии различаются',
+          okT11, 'feGaussianBlur в EE: ' + (gB.indexOf('feGaussianBlur') >= 0) +
+          ', в ee: ' + (nB.indexOf('feGaussianBlur') >= 0));
+
+        /* T12. describePhenotypeRender(Нокт): species 'noct', цвета glow. */
+        var phenG = genome.genomeToPhenotype(mkN([['E', 'e']]));
+        var phenN = genome.genomeToPhenotype(mkN([['e', 'e']]));
+        var dG = creature.describePhenotypeRender(phenG, 'adult', 'noct');
+        var dN = creature.describePhenotypeRender(phenN, 'adult', 'noct');
+        var okT12 = dG.phenotype.glow === 'светящееся' &&
+          dN.phenotype.glow === 'не светящееся' &&
+          dG.colors.glow === '#e8c76f' && dN.colors.glow === null &&
+          dG.species === 'noct' && dN.modules.join(',').indexOf('glow') < 0;
+        check('T12. Нокт (7d): описатель — species «noct», glow #e8c76f / null',
+          okT12, 'glow цвета: ' + dG.colors.glow + ' / ' + dN.colors.glow +
+          ', модули ee: ' + dN.modules.join(','));
       })();
 
       /* ---- Вывод ---- */

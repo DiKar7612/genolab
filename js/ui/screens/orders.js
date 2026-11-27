@@ -35,12 +35,21 @@
   var filterVal = '';   /* значение признака */
   var message = '';
 
-  function species() {
-    return g.core.genome.getSpecies('golo');
+  /* Фаза 7d: список всех видов (заказы бывают разных видов). */
+  function allSpecies() {
+    var cfg = g.core.genome.getSpeciesConfig();
+    return (cfg && Array.isArray(cfg.species)) ? cfg.species : [];
   }
 
-  function phenLabel(phen) {
-    var sp = species();
+  /* Вид заказа: поле species (фаза 7d) или golo (старые данные). */
+  function speciesFor(order) {
+    var id = (order && order.species) ? order.species : 'golo';
+    var sp = g.core.genome.getSpecies(id);
+    return sp || g.core.genome.getSpecies('golo');
+  }
+
+  function phenLabel(phen, order) {
+    var sp = speciesFor(order);
     var parts = [];
     sp.traits.forEach(function (t) {
       if (phen[t.id]) parts.push(t.name + ': ' + phen[t.id]);
@@ -49,13 +58,14 @@
   }
 
   function filterOptionsHTML() {
-    var sp = species();
     var html = '<option value="">Без фильтра</option>';
-    sp.traits.forEach(function (t) {
-      Object.keys(t.values).forEach(function (allele) {
-        var v = t.values[allele];
-        html += '<option value="' + esc(t.id) + ':' + esc(v) + '">' +
-          esc(t.name + ': ' + v) + '</option>';
+    allSpecies().forEach(function (sp) {
+      sp.traits.forEach(function (t) {
+        Object.keys(t.values).forEach(function (allele) {
+          var v = t.values[allele];
+          html += '<option value="' + esc(t.id) + ':' + esc(v) + '">' +
+            esc(t.name + ': ' + v + ' — ' + sp.name) + '</option>';
+        });
       });
     });
     return html;
@@ -120,7 +130,8 @@
       else if (!o.match) cls += ' orders__item--waiting';
       html += '<article class="' + cls + '">' +
         '<h2 class="orders__item-title">' + esc(o.title) + '</h2>' +
-        '<p class="orders__item-phen">Признаки: ' + esc(phenLabel(o.phen)) + '</p>' +
+        '<p class="orders__item-phen">Вид: ' + esc(speciesFor(o).name) +
+        ' — признаки: ' + esc(phenLabel(o.phen, o)) + '</p>' +
         '<p class="orders__item-reward">Награда: ' + o.reward.coins + ' мон., ' +
         o.reward.reputation + ' реп.</p>';
       if (o.done) {

@@ -71,7 +71,13 @@
         phen: { size: 'мелкий', color: 'белый' }, reward: { coins: 120, reputation: 2 } },
       { id: 'o5', title: 'Нужен мелкий белый с круглыми ушами',
         phen: { size: 'мелкий', color: 'белый', ears: 'круглые' },
-        reward: { coins: 200, reputation: 3 } }
+        reward: { coins: 200, reputation: 3 } },
+      /* Фаза 7d: заказы нового вида (поле species: вид, для которого
+       * нужен фенотип; match — только существа этого вида). */
+      { id: 'o6', title: 'Нужен светящийся Нокт', species: 'noct',
+        phen: { glow: 'светящееся' }, reward: { coins: 80, reputation: 2 } },
+      { id: 'o7', title: 'Нужен Нокт без свечения', species: 'noct',
+        phen: { glow: 'не светящееся' }, reward: { coins: 120, reputation: 2 } }
     ]
   };
 
@@ -345,8 +351,10 @@
 
   /**
    * Список заказов со статусом для экрана «Заказы»:
-   * {id, title, phen, reward, done, match: string|null}
+   * {id, title, species, phen, reward, done, match: string|null}
    * (match — id первого подходящего существа в вольере или null).
+   * Фаза 7d: поле species у заказа (вид, для которого нужен фенотип);
+   * при отсутствии поля — любой вид (старые данные).
    * @returns {Array<Object>}
    */
   function listOrders() {
@@ -357,10 +365,13 @@
       var match = null;
       for (var i = 0; i < st.enclosure.length; i++) {
         var c = st.enclosure[i];
+        /* Фаза 7d: чужой вид не подходит под заказ. */
+        if (o.species && c.species !== o.species) continue;
         if (matchPhenotype(genome.genomeToPhenotype(c), o.phen)) { match = c.id; break; }
       }
       return {
-        id: o.id, title: o.title, phen: deepCopy(o.phen),
+        id: o.id, title: o.title, species: o.species || null,
+        phen: deepCopy(o.phen),
         reward: deepCopy(o.reward), done: isOrderDone(qs, o.id), match: match
       };
     });

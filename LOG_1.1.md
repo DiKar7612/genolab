@@ -235,3 +235,135 @@
     тестами (breeder 12/12, render_grid 12/12).
 - Файлы вне задания: не трогал.
 - Блокеры: нет. Ожидаю приёмки; коммит — после приёмки.
+
+## [Фаза 7d] 2026-11-27 17:15 — Разведка (п. 0), до правок кода
+- Что сделано: только чтение файлов (см. ниже); правки кода не вносились.
+  Решения пользователя (Prompts/phase7d_species.md, блок [ЗАПОЛНИТЬ]):
+  вид — «Нокт» (id noct), облик — круглый, большие уши, короткий хвост;
+  один новый признак — свечение E/e, полное доминирование, E — светящееся
+  (тёплый мёд #e8c76f, feGaussianBlur); только заказы нового вида
+  (без новых квестов).
+- а) Перечень жёстко прописанных ссылок на 'golo' и данных вида:
+  1. js/data/species.json — единственный вид golo (4 признака, lifeStages).
+  2. js/core/genome.js — встроенная копия SPECIES (1 вид, ~строки 31–66);
+     шапка «один вид»; getSpecies/getSpeciesConfig/isSpeciesConfig/
+     validateGenome/createGenome — уже динамичны по speciesId и числу
+     признаков, менять не нужно.
+  3. js/state/store.js строки 34–36 — starterCreatures: c1, c2 (AaBbCcDd),
+     c3 (aabbccdd), все golo. Нокта игрок получить не может (скрещивание —
+     только из вольера). Решение: добавить стартеров c4, c5 (noct Ee × Ee —
+     расщепление 3:1 в E2E).
+  4. js/render/creature.js — renderCreature(phen, px, stage) и
+     describePhenotypeRender(phen, stage) БЕЗ вида; весь сбор — golo
+     (хвост→уши→корпус→полосы→морда); stageFor() — getSpecies('golo')
+     (строка ~104); PALETTES — по окрасу golo.
+  5. js/ui/screens/enclosure.js:43 — renderCreature(phen, 96) без вида;
+     sp.name в заголовке карточки уже динамичен (getSpecies(c.species));
+     фильтра по виду нет — добавить.
+  6. js/ui/screens/creature.js:37 — optionsHTML: getSpecies('golo')
+     (подписи по признакам golo для всех существ); :91 renderCreature без
+     вида.
+  7. js/ui/screens/breed.js — slotOptions: все существа вольера без
+     фильтра по виду (нет UI-гарда); :106,:136 renderCreature(phen, 96)
+     без вида.
+  8. js/ui/screens/predictor.js:44 — species() = getSpecies('golo')
+     (цели по признакам golo); селекторы родителей — все существа.
+  9. js/ui/screens/orders.js:39 — species() = getSpecies('golo')
+     (phenLabel и filterOptionsHTML — только признаки golo).
+  10. js/quests/questEngine.js — QUESTS_DATA (встроенная копия
+     quests.json): у заказов нет поля вида; listOrders (строки 352–367) —
+     matchPhenotype по подмножеству ключей spec, вида не проверяет.
+     Разные id признаков ('glow' у noct) дают естественную изоляцию, но
+     добавим явное поле species у заказов + проверку в listOrders
+     (обратная совместимость: нет species в данных → любой вид).
+  11. js/state/save.js:58 — validateGenome (genome.js) требует известного
+     вида — менять не нужно.
+  12. js/render/pennett.js:100 — renderCreature(ph, sizePx) без вида
+     (спрайты клеток); renderGrid получает родителей — вид можно передать.
+  13. index.html / js/main.js — списка видов нет, новых модулей не
+     появляется — менять не нужно.
+  14. Тесты: tests/render_grid.html (только golo, 24 комбо),
+     tests/breeder.test.html, tests/genome.test.html (T? — тождество
+     species.json и вшитой копии — автоматически проверит и noct),
+     tests/quests_test.html — регрессия, должны остаться зелёными.
+- б) ТЗ §9 7d: «Скрещивание между видами запрещено (breeder возвращает
+  ошибку)» — уже реализовано в js/core/breeder.js (checkBoth бросает
+  Error при разных видах). ТЗ §4 (интерфейс) видов не упоминает.
+  Промт п. 3: UI-гард в breed.js (второй селектор показывает только вид
+  выбранного первого родителя) + ошибка при обходе (движковый checkBoth).
+- Решения по рендеру: renderCreature(phen, px, stage, speciesId) и
+  describePhenotypeRender(phen, stage, speciesId) — 4-й/3-й опциональные
+  аргументы, дефолт 'golo' (обратная совместимость всех вызовов).
+  Части noct: tail (короткий), ears (большие), body (круглый), glow
+  (свечение, feGaussianBlur) — файлы assets/parts/noct-*.svg + вшитая
+  копия (по образцу golo, assets/parts/README.md).
+- Запуск и проверка: только чтение (cat/grep/sed); команды запуска
+  не требовались. node --check на изменённых файлах — после правок.
+- Что НЕ сделано / НЕ проверено: весь код фазы 7d (следующие записи).
+- Файлы вне задания: не трогал.
+- Блокеры: нет.
+
+---
+
+## Фаза 7d — «Второй вид» (Нокт): реализация и приёмка — 2026-11-27
+- Что сделано (шаги 1–7 Prompts/phase7d_species.md):
+  1. Вид «noct» добавлен в js/data/species.json И вшитую копию SPECIES в
+     js/core/genome.js (облик: круглый, большие уши, короткий хвост;
+     признак glow E/e, полное доминирование, E — светящееся, тёплый мёд
+     #e8c76f через feGaussianBlur; 3 lifeStages).
+  2. Рендер: js/render/creature.js — ветка noct (buildPartsNoct: tail →
+     ears → body → glow (только при «светящееся») → face; coatMix серым;
+     aria-label «Нокт: …»), 4-й аргумент speciesId в renderCreature и
+     describePhenotypeRender (дефолт 'golo', поле species в возвращаемом
+     описании). Канонические SVG: assets/parts/noct-{tail,ears,body,
+     glow}.svg + README. Все вызовы renderCreature в UI/pennett.js
+     передают вид.
+  3. Запрет межвидового: UI-гард в js/ui/screens/breed.js (второй
+     селектор — только вид первого родителя; «Случайно» группирует по
+     видам; startCross отклоняет разнородных) + движковый checkBoth
+     (breeder.js) как второй рубеж.
+  4. Фильтр «Вид» в вольере (js/ui/screens/enclosure.js + CSS
+     .enclosure__filter); ярлык вида на карточках всех экранов.
+  5. Заказы: o6 (светящийся Нокт, 80/2) и o7 (Нокт без свечения, 120/2)
+     в js/data/quests.json + вшитая QUESTS_DATA (questEngine.js);
+     listOrders фильтрует по species (нет поля — любой вид). Стартеры
+     store.js: +c4, c5 (noct Ee).
+  6. Предсказатель (js/ui/screens/predictor.js): динамический вид из
+     родителя A, пересборка целевых признаков при смене вида, warning
+     при разнородных родителях.
+  7. Сейв: схема genolab_save_v1 не менялась — validate() принимает
+     noct (проверено: 0 ошибок, 7 noct-существ в сейве после
+     скрещивания).
+- Запуск и проверка (python -m http.server 8321, Chrome DevTools MCP,
+  cache-bust ignoreCache):
+  - tests/genome.test.html — PASS (10/10), включая T9a (валидация и
+    фенотип noct) и T1 (2 вида в species.json ≡ вшитой копии).
+  - tests/breeder.test.html — PASS (14/14), включая T13 (межвидовый
+    cross → Error) и T14 (noct Ee×Ee → 3:1).
+  - tests/render_grid.html — PASS (14/14), включая T11 (glow-фильтр
+    #e8c76f только у EE/Ee, 3 стадии различаются) и T12
+    (describePhenotypeRender: species 'noct', glow #e8c76f / null).
+  - tests/quests_test.html — PASS (7/7), T6: 7 заказов, o6→c4, o7→null.
+  - tests/mutation_test.html — PASS (5/5).
+  - tests/config_test.html — PASS (5/5).
+  - Приложение (index.html, чистый старт): вольер 5/12 с фильтром видов
+    (Нокт → только c4/c5), скрещивание c4×c5 → 3 потомка noct в вольере,
+    заказы (7 шт., фильтры признаков с noct, ярлык «Вид: Нокт»),
+    предсказатель (таргеты noct, Ee×ee прогноз 50% → «1 из 1 (100%)»),
+    карточка c4 — SVG 240px с aria-label «Нокт: светящееся, стадия:
+    adult». Консоль: 0 ошибок (кроме favicon 404 на тестовой странице).
+  - Vision-проверка скриншота (VL): два Нокта — левый с тёплым
+    желтоватым свечением в области морды, правый без свечения; большие
+    уши, круглое тело, короткий хвост.
+  - node --check: 14/14 модулей; JSON-валидация quests.json и
+    species.json — OK.
+- Файлы (14 изменённых + 5 новых): species.json, quests.json, genome.js,
+  creature.js (render), pennett.js, questEngine.js, store.js,
+  breed.js, enclosure.js, creature.js (screen), orders.js, predictor.js,
+  components.css, render_grid.html, genome.test.html,
+  breeder.test.html, quests_test.html; новые: assets/parts/noct-*.svg
+  (4 шт.) + README.
+- Файлы вне задания: не трогал (LOG_1.md, LOGGING.md, genolab_tz.md,
+  ART_STYLE.md, SECURITY.md, docs/).
+- Блокеры: нет. Коммит — после этой записи (см. хэш в следующей
+  пометке).
